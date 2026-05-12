@@ -1,11 +1,18 @@
+server:
+  port: 8081
+
 spring:
   application:
     name: studyplatform-api
 
+  docker:
+    compose:
+      enabled: false
+
   datasource:
-    url: jdbc:postgresql://localhost:5432/studyplatform
-    username: postgres
-    password: postgres
+    url: jdbc:postgresql://aws-1-us-west-2.pooler.supabase.com:6543/postgres
+    username: postgres.taulohcsqlvzdgougyky
+    password: yourpassword
 
   jpa:
     hibernate:
