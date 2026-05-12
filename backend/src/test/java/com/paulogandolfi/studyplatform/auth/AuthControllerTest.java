@@ -67,4 +67,39 @@ class AuthControllerTest {
                                 """))
                 .andExpect(status().isConflict());
     }
+
+    @Test
+    void loginReturnsUserForValidCredentials() throws Exception {
+        userRepository.save(new User("Login User", "login@example.com", passwordEncoder.encode("password123")));
+
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "LOGIN@example.com",
+                                  "password": "password123"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").exists())
+                .andExpect(jsonPath("$.name").value("Login User"))
+                .andExpect(jsonPath("$.email").value("login@example.com"))
+                .andExpect(jsonPath("$.createdAt").exists())
+                .andExpect(jsonPath("$.password").doesNotExist());
+    }
+
+    @Test
+    void loginRejectsInvalidCredentials() throws Exception {
+        userRepository.save(new User("Wrong Password User", "wrong-password@example.com", passwordEncoder.encode("password123")));
+
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "wrong-password@example.com",
+                                  "password": "wrong-password"
+                                }
+                                """))
+                .andExpect(status().isUnauthorized());
+    }
 }
