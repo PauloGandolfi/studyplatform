@@ -13,10 +13,12 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
     }
 
     @Transactional
@@ -45,7 +47,7 @@ public class AuthService {
             throw invalidCredentials();
         }
 
-        return LoginUserResponse.from(user);
+        return LoginUserResponse.from(user, jwtService.createToken(user));
     }
 
     private static ResponseStatusException invalidCredentials() {

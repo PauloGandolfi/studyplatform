@@ -1,6 +1,11 @@
 server:
   port: 8081
 
+app:
+  jwt:
+    secret: ${JWT_SECRET:studyplatform-local-dev-secret-must-be-changed-in-production}
+    expiration: 1h
+
 spring:
   application:
     name: studyplatform-api
@@ -12,7 +17,7 @@ spring:
   datasource:
     url: jdbc:postgresql://aws-1-us-west-2.pooler.supabase.com:6543/postgres
     username: postgres.taulohcsqlvzdgougyky
-    password: 32258953@@Paulo
+    password: yourpassword
 
   jpa:
     hibernate:

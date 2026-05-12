@@ -7,8 +7,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -27,6 +30,9 @@ class AuthControllerTest {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private JwtDecoder jwtDecoder;
 
     @Test
     void registerCreatesUserWithEncodedPassword() throws Exception {
@@ -70,9 +76,9 @@ class AuthControllerTest {
 
     @Test
     void loginReturnsUserForValidCredentials() throws Exception {
-        userRepository.save(new User("Login User", "login@example.com", passwordEncoder.encode("password123")));
+        User user = userRepository.save(new User("Login User", "login@example.com", passwordEncoder.encode("password123")));
 
-        mockMvc.perform(post("/auth/login")
+        MvcResult result = mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -85,7 +91,20 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.name").value("Login User"))
                 .andExpect(jsonPath("$.email").value("login@example.com"))
                 .andExpect(jsonPath("$.createdAt").exists())
-                .andExpect(jsonPath("$.password").doesNotExist());
+                .andExpect(jsonPath("$.accessToken").exists())
+                .andExpect(jsonPath("$.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.password").doesNotExist())
+                .andReturn();
+
+        String response = result.getResponse().getContentAsString();
+        String accessToken = response.substring(response.indexOf("\"accessToken\":\"") + 15);
+        accessToken = accessToken.substring(0, accessToken.indexOf('"'));
+
+        Jwt jwt = jwtDecoder.decode(accessToken);
+
+        assertThat(jwt.getSubject()).isEqualTo("login@example.com");
+        assertThat(jwt.getClaimAsString("userId")).isEqualTo(user.getId().toString());
+        assertThat(jwt.getClaimAsString("name")).isEqualTo("Login User");
     }
 
     @Test

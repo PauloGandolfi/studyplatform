@@ -9,15 +9,19 @@ public record LoginUserResponse(
         UUID id,
         String name,
         String email,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        String accessToken,
+        String tokenType
 ) {
 
-    public static LoginUserResponse from(User user) {
+    public static LoginUserResponse from(User user, String accessToken) {
         return new LoginUserResponse(
                 user.getId(),
                 user.getName(),
                 user.getEmail(),
-                user.getCreatedAt()
+                user.getCreatedAt(),
+                accessToken,
+                "Bearer"
         );
     }
 }
