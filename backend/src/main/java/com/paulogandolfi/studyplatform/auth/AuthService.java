@@ -13,10 +13,12 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
     }
 
     @Transactional
@@ -32,5 +34,23 @@ public class AuthService {
         User savedUser = userRepository.save(user);
 
         return RegisterUserResponse.from(savedUser);
+    }
+
+    @Transactional(readOnly = true)
+    public LoginUserResponse login(LoginUserRequest request) {
+        String email = request.email().trim().toLowerCase();
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(AuthService::invalidCredentials);
+
+        if (!passwordEncoder.matches(request.password(), user.getPassword())) {
+            throw invalidCredentials();
+        }
+
+        return LoginUserResponse.from(user, jwtService.createToken(user));
+    }
+
+    private static ResponseStatusException invalidCredentials() {
+        return new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
     }
 }

@@ -7,3 +7,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
+
+app:
+  jwt:
+    secret: studyplatform-test-secret-with-enough-length
+    expiration: 1h
