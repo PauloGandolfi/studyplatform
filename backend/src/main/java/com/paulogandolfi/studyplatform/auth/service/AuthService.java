@@ -1,7 +1,11 @@
-package com.paulogandolfi.studyplatform.auth;
+package com.paulogandolfi.studyplatform.auth.service;
 
-import com.paulogandolfi.studyplatform.users.User;
-import com.paulogandolfi.studyplatform.users.UserRepository;
+import com.paulogandolfi.studyplatform.auth.dto.LoginUserRequest;
+import com.paulogandolfi.studyplatform.auth.dto.LoginUserResponse;
+import com.paulogandolfi.studyplatform.auth.dto.RegisterUserRequest;
+import com.paulogandolfi.studyplatform.auth.dto.RegisterUserResponse;
+import com.paulogandolfi.studyplatform.users.entity.User;
+import com.paulogandolfi.studyplatform.users.repository.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;

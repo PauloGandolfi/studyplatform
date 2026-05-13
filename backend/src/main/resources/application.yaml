@@ -17,7 +17,7 @@ spring:
   datasource:
     url: jdbc:postgresql://aws-1-us-west-2.pooler.supabase.com:6543/postgres
     username: postgres.taulohcsqlvzdgougyky
-    password: yourpassword
+    password: 32258953@@Paulo
 
   jpa:
     hibernate:

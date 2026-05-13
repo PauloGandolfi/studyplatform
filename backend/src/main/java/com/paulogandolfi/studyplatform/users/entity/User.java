@@ -1,4 +1,4 @@
-package com.paulogandolfi.studyplatform.users;
+package com.paulogandolfi.studyplatform.users.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

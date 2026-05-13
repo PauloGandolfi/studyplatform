@@ -1,5 +1,10 @@
-package com.paulogandolfi.studyplatform.auth;
+package com.paulogandolfi.studyplatform.auth.controller;
 
+import com.paulogandolfi.studyplatform.auth.dto.LoginUserRequest;
+import com.paulogandolfi.studyplatform.auth.dto.LoginUserResponse;
+import com.paulogandolfi.studyplatform.auth.dto.RegisterUserRequest;
+import com.paulogandolfi.studyplatform.auth.dto.RegisterUserResponse;
+import com.paulogandolfi.studyplatform.auth.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
