@@ -1,8 +1,10 @@
-package com.paulogandolfi.studyplatform.subjects;
+package com.paulogandolfi.studyplatform.subjects.controller;
 
-import com.paulogandolfi.studyplatform.auth.JwtService;
-import com.paulogandolfi.studyplatform.users.User;
-import com.paulogandolfi.studyplatform.users.UserRepository;
+import com.paulogandolfi.studyplatform.auth.service.JwtService;
+import com.paulogandolfi.studyplatform.subjects.entity.Subject;
+import com.paulogandolfi.studyplatform.subjects.repository.SubjectRepository;
+import com.paulogandolfi.studyplatform.users.entity.User;
+import com.paulogandolfi.studyplatform.users.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

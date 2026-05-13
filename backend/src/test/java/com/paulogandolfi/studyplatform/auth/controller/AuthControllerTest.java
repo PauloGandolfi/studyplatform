@@ -1,7 +1,7 @@
-package com.paulogandolfi.studyplatform.auth;
+package com.paulogandolfi.studyplatform.auth.controller;
 
-import com.paulogandolfi.studyplatform.users.User;
-import com.paulogandolfi.studyplatform.users.UserRepository;
+import com.paulogandolfi.studyplatform.users.entity.User;
+import com.paulogandolfi.studyplatform.users.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;

@@ -1,4 +1,4 @@
-package com.paulogandolfi.studyplatform.subjects;
+package com.paulogandolfi.studyplatform.subjects.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

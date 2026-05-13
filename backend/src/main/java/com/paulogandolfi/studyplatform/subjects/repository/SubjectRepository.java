@@ -1,5 +1,6 @@
-package com.paulogandolfi.studyplatform.subjects;
+package com.paulogandolfi.studyplatform.subjects.repository;
 
+import com.paulogandolfi.studyplatform.subjects.entity.Subject;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

@@ -1,7 +1,11 @@
-package com.paulogandolfi.studyplatform.subjects;
+package com.paulogandolfi.studyplatform.subjects.service;
 
-import com.paulogandolfi.studyplatform.users.User;
-import com.paulogandolfi.studyplatform.users.UserRepository;
+import com.paulogandolfi.studyplatform.subjects.dto.SubjectRequest;
+import com.paulogandolfi.studyplatform.subjects.dto.SubjectResponse;
+import com.paulogandolfi.studyplatform.subjects.entity.Subject;
+import com.paulogandolfi.studyplatform.subjects.repository.SubjectRepository;
+import com.paulogandolfi.studyplatform.users.entity.User;
+import com.paulogandolfi.studyplatform.users.repository.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

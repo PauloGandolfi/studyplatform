@@ -1,4 +1,6 @@
-package com.paulogandolfi.studyplatform.subjects;
+package com.paulogandolfi.studyplatform.subjects.dto;
+
+import com.paulogandolfi.studyplatform.subjects.entity.Subject;
 
 import java.time.LocalDateTime;
 import java.util.UUID;

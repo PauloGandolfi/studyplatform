@@ -1,6 +1,6 @@
-package com.paulogandolfi.studyplatform.auth;
+package com.paulogandolfi.studyplatform.auth.service;
 
-import com.paulogandolfi.studyplatform.users.User;
+import com.paulogandolfi.studyplatform.users.entity.User;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;

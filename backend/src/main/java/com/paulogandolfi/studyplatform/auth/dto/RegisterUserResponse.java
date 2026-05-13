@@ -1,6 +1,6 @@
-package com.paulogandolfi.studyplatform.auth;
+package com.paulogandolfi.studyplatform.auth.dto;
 
-import com.paulogandolfi.studyplatform.users.User;
+import com.paulogandolfi.studyplatform.users.entity.User;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
