@@ -1,8 +1,9 @@
-package com.paulogandolfi.studyplatform.notes.controller;
+package com.paulogandolfi.studyplatform.flashcards.controller;
 
 import com.paulogandolfi.studyplatform.auth.service.JwtService;
-import com.paulogandolfi.studyplatform.notes.entity.Note;
-import com.paulogandolfi.studyplatform.notes.repository.NoteRepository;
+import com.paulogandolfi.studyplatform.flashcards.entity.Difficulty;
+import com.paulogandolfi.studyplatform.flashcards.entity.Flashcard;
+import com.paulogandolfi.studyplatform.flashcards.repository.FlashcardRepository;
 import com.paulogandolfi.studyplatform.subjects.entity.Subject;
 import com.paulogandolfi.studyplatform.subjects.repository.SubjectRepository;
 import com.paulogandolfi.studyplatform.users.entity.User;
@@ -26,7 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-class NoteControllerTest {
+class FlashcardControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -38,7 +39,7 @@ class NoteControllerTest {
     private SubjectRepository subjectRepository;
 
     @Autowired
-    private NoteRepository noteRepository;
+    private FlashcardRepository flashcardRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -47,190 +48,172 @@ class NoteControllerTest {
     private JwtService jwtService;
 
     @Test
-    void notesRequireAuthentication() throws Exception {
-        mockMvc.perform(get("/notes"))
+    void flashcardsRequireAuthentication() throws Exception {
+        mockMvc.perform(get("/flashcards"))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void createAndListNotesForAuthenticatedUser() throws Exception {
-        User user = createUser("Note User", "note-user@example.com");
-        User otherUser = createUser("Other Note User", "other-note-user@example.com");
+    void createAndListFlashcardsForAuthenticatedUser() throws Exception {
+        User user = createUser("Flashcard User", "flashcard-user@example.com");
+        User otherUser = createUser("Other Flashcard User", "other-flashcard-user@example.com");
         Subject subject = subjectRepository.save(new Subject(user, "Java"));
         Subject otherSubject = subjectRepository.save(new Subject(otherUser, "Python"));
-        noteRepository.save(new Note(otherSubject, "Other note", "Other content"));
+        flashcardRepository.save(new Flashcard(otherSubject, "Other question", "Other answer", Difficulty.HARD));
 
-        mockMvc.perform(post("/notes")
+        mockMvc.perform(post("/flashcards")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "subjectId": "%s",
-                                  "title": "  Streams  ",
-                                  "content": "  Study map/filter/reduce.  "
+                                  "question": "  What is a stream?  ",
+                                  "answer": "  A pipeline of data operations.  ",
+                                  "difficulty": "MEDIUM"
                                 }
                                 """.formatted(subject.getId())))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").exists())
                 .andExpect(jsonPath("$.subjectId").value(subject.getId().toString()))
-                .andExpect(jsonPath("$.title").value("Streams"))
-                .andExpect(jsonPath("$.content").value("Study map/filter/reduce."))
+                .andExpect(jsonPath("$.question").value("What is a stream?"))
+                .andExpect(jsonPath("$.answer").value("A pipeline of data operations."))
+                .andExpect(jsonPath("$.difficulty").value("MEDIUM"))
                 .andExpect(jsonPath("$.createdAt").exists())
                 .andExpect(jsonPath("$.updatedAt").exists());
 
-        mockMvc.perform(get("/notes")
+        mockMvc.perform(get("/flashcards")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].subjectId").value(subject.getId().toString()))
-                .andExpect(jsonPath("$[0].title").value("Streams"));
+                .andExpect(jsonPath("$[0].question").value("What is a stream?"));
     }
 
     @Test
-    void listNotesBySubjectOnlyWhenSubjectBelongsToAuthenticatedUser() throws Exception {
-        User user = createUser("Subject Notes User", "subject-notes-user@example.com");
-        User otherUser = createUser("Other Subject Notes User", "other-subject-notes-user@example.com");
+    void listFlashcardsBySubjectOnlyWhenSubjectBelongsToAuthenticatedUser() throws Exception {
+        User user = createUser("Subject Flashcard User", "subject-flashcard-user@example.com");
+        User otherUser = createUser("Other Subject Flashcard User", "other-subject-flashcard-user@example.com");
         Subject subject = subjectRepository.save(new Subject(user, "Java"));
         Subject otherSubject = subjectRepository.save(new Subject(user, "Spring"));
         Subject otherUserSubject = subjectRepository.save(new Subject(otherUser, "Python"));
-        noteRepository.save(new Note(subject, "Streams", "map/filter/reduce"));
-        noteRepository.save(new Note(otherSubject, "Security", "JWT"));
-        noteRepository.save(new Note(otherUserSubject, "Decorators", "Functions"));
+        flashcardRepository.save(new Flashcard(subject, "Streams?", "Data operations", Difficulty.MEDIUM));
+        flashcardRepository.save(new Flashcard(otherSubject, "Security?", "JWT", Difficulty.HARD));
+        flashcardRepository.save(new Flashcard(otherUserSubject, "Decorators?", "Functions", Difficulty.EASY));
 
-        mockMvc.perform(get("/subjects/{id}/notes", subject.getId())
+        mockMvc.perform(get("/subjects/{id}/flashcards", subject.getId())
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].subjectId").value(subject.getId().toString()))
-                .andExpect(jsonPath("$[0].title").value("Streams"));
+                .andExpect(jsonPath("$[0].question").value("Streams?"));
 
-        mockMvc.perform(get("/subjects/{id}/notes", otherUserSubject.getId())
+        mockMvc.perform(get("/subjects/{id}/flashcards", otherUserSubject.getId())
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user)))
                 .andExpect(status().isNotFound());
     }
 
     @Test
-    void rejectCreatingNoteInSubjectOwnedByAnotherUser() throws Exception {
-        User user = createUser("Owner Note User", "owner-note-user@example.com");
-        User otherUser = createUser("Other Subject Owner", "other-subject-owner@example.com");
+    void rejectCreatingFlashcardInSubjectOwnedByAnotherUser() throws Exception {
+        User user = createUser("Owner Flashcard User", "owner-flashcard-user@example.com");
+        User otherUser = createUser("Other Flashcard Subject Owner", "other-flashcard-subject-owner@example.com");
         Subject otherSubject = subjectRepository.save(new Subject(otherUser, "Python"));
-        long notesBefore = noteRepository.count();
+        long flashcardsBefore = flashcardRepository.count();
 
-        mockMvc.perform(post("/notes")
+        mockMvc.perform(post("/flashcards")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "subjectId": "%s",
-                                  "title": "Invalid note",
-                                  "content": "This should not be created."
+                                  "question": "Invalid",
+                                  "answer": "This should not be created.",
+                                  "difficulty": "EASY"
                                 }
                                 """.formatted(otherSubject.getId())))
                 .andExpect(status().isNotFound());
 
-        assertThat(noteRepository.count()).isEqualTo(notesBefore);
+        assertThat(flashcardRepository.count()).isEqualTo(flashcardsBefore);
     }
 
     @Test
-    void updateNoteOnlyWhenItsSubjectBelongsToAuthenticatedUser() throws Exception {
-        User user = createUser("Update Note User", "update-note-user@example.com");
-        User otherUser = createUser("Other Update Note User", "other-update-note-user@example.com");
+    void updateFlashcardOnlyWhenOwnedByAuthenticatedUser() throws Exception {
+        User user = createUser("Update Flashcard User", "update-flashcard-user@example.com");
+        User otherUser = createUser("Other Update Flashcard User", "other-update-flashcard-user@example.com");
         Subject subject = subjectRepository.save(new Subject(user, "Java"));
         Subject otherOwnedSubject = subjectRepository.save(new Subject(user, "Spring"));
         Subject otherUserSubject = subjectRepository.save(new Subject(otherUser, "Python"));
-        Note note = noteRepository.save(new Note(subject, "Collections", "List and Set"));
-        Note otherNote = noteRepository.save(new Note(otherUserSubject, "Decorators", "Python decorators"));
+        Flashcard flashcard = flashcardRepository.save(new Flashcard(subject, "Collections?", "List and Set", Difficulty.EASY));
+        Flashcard otherFlashcard = flashcardRepository.save(new Flashcard(otherUserSubject, "Decorators?", "Python decorators", Difficulty.HARD));
 
-        mockMvc.perform(put("/notes/{id}", note.getId())
+        mockMvc.perform(put("/flashcards/{id}", flashcard.getId())
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "subjectId": "%s",
-                                  "title": "Spring Security",
-                                  "content": "JWT resource server"
+                                  "question": "What is Spring Security?",
+                                  "answer": "A security framework.",
+                                  "difficulty": "HARD"
                                 }
                                 """.formatted(otherOwnedSubject.getId())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.subjectId").value(otherOwnedSubject.getId().toString()))
-                .andExpect(jsonPath("$.title").value("Spring Security"))
-                .andExpect(jsonPath("$.content").value("JWT resource server"));
+                .andExpect(jsonPath("$.question").value("What is Spring Security?"))
+                .andExpect(jsonPath("$.answer").value("A security framework."))
+                .andExpect(jsonPath("$.difficulty").value("HARD"));
 
-        mockMvc.perform(put("/notes/{id}", otherNote.getId())
+        mockMvc.perform(put("/flashcards/{id}", otherFlashcard.getId())
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "subjectId": "%s",
-                                  "title": "Changed",
-                                  "content": "Changed"
+                                  "question": "Changed",
+                                  "answer": "Changed",
+                                  "difficulty": "MEDIUM"
                                 }
                                 """.formatted(subject.getId())))
                 .andExpect(status().isNotFound());
 
-        assertThat(noteRepository.findById(otherNote.getId()).orElseThrow().getTitle()).isEqualTo("Decorators");
+        assertThat(flashcardRepository.findById(otherFlashcard.getId()).orElseThrow().getQuestion()).isEqualTo("Decorators?");
     }
 
     @Test
-    void rejectMovingNoteToSubjectOwnedByAnotherUser() throws Exception {
-        User user = createUser("Move Note User", "move-note-user@example.com");
-        User otherUser = createUser("Other Move Note User", "other-move-note-user@example.com");
+    void deleteFlashcardOnlyWhenOwnedByAuthenticatedUser() throws Exception {
+        User user = createUser("Delete Flashcard User", "delete-flashcard-user@example.com");
+        User otherUser = createUser("Other Delete Flashcard User", "other-delete-flashcard-user@example.com");
         Subject subject = subjectRepository.save(new Subject(user, "Java"));
         Subject otherUserSubject = subjectRepository.save(new Subject(otherUser, "Python"));
-        Note note = noteRepository.save(new Note(subject, "Generics", "Type bounds"));
+        Flashcard flashcard = flashcardRepository.save(new Flashcard(subject, "Records?", "DTOs", Difficulty.MEDIUM));
+        Flashcard otherFlashcard = flashcardRepository.save(new Flashcard(otherUserSubject, "Django?", "ORM", Difficulty.EASY));
 
-        mockMvc.perform(put("/notes/{id}", note.getId())
-                        .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "subjectId": "%s",
-                                  "title": "Changed",
-                                  "content": "Changed"
-                                }
-                                """.formatted(otherUserSubject.getId())))
-                .andExpect(status().isNotFound());
-
-        Note unchanged = noteRepository.findById(note.getId()).orElseThrow();
-        assertThat(unchanged.getSubject().getId()).isEqualTo(subject.getId());
-        assertThat(unchanged.getTitle()).isEqualTo("Generics");
-    }
-
-    @Test
-    void deleteNoteOnlyWhenOwnedByAuthenticatedUser() throws Exception {
-        User user = createUser("Delete Note User", "delete-note-user@example.com");
-        User otherUser = createUser("Other Delete Note User", "other-delete-note-user@example.com");
-        Subject subject = subjectRepository.save(new Subject(user, "Java"));
-        Subject otherUserSubject = subjectRepository.save(new Subject(otherUser, "Python"));
-        Note note = noteRepository.save(new Note(subject, "Records", "DTOs"));
-        Note otherNote = noteRepository.save(new Note(otherUserSubject, "Django", "ORM"));
-
-        mockMvc.perform(delete("/notes/{id}", otherNote.getId())
+        mockMvc.perform(delete("/flashcards/{id}", otherFlashcard.getId())
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user)))
                 .andExpect(status().isNotFound());
 
-        assertThat(noteRepository.existsById(otherNote.getId())).isTrue();
+        assertThat(flashcardRepository.existsById(otherFlashcard.getId())).isTrue();
 
-        mockMvc.perform(delete("/notes/{id}", note.getId())
+        mockMvc.perform(delete("/flashcards/{id}", flashcard.getId())
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user)))
                 .andExpect(status().isNoContent());
 
-        assertThat(noteRepository.existsById(note.getId())).isFalse();
+        assertThat(flashcardRepository.existsById(flashcard.getId())).isFalse();
     }
 
     @Test
-    void rejectBlankNoteFields() throws Exception {
-        User user = createUser("Validation Note User", "validation-note-user@example.com");
+    void rejectBlankFlashcardFields() throws Exception {
+        User user = createUser("Validation Flashcard User", "validation-flashcard-user@example.com");
         Subject subject = subjectRepository.save(new Subject(user, "Java"));
 
-        mockMvc.perform(post("/notes")
+        mockMvc.perform(post("/flashcards")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "subjectId": "%s",
-                                  "title": " ",
-                                  "content": " "
+                                  "question": " ",
+                                  "answer": " ",
+                                  "difficulty": "MEDIUM"
                                 }
                                 """.formatted(subject.getId())))
                 .andExpect(status().isBadRequest());

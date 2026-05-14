@@ -41,6 +41,16 @@ public class NoteService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<NoteResponse> listBySubject(UUID userId, UUID subjectId) {
+        findSubject(subjectId, userId);
+
+        return noteRepository.findAllBySubject_IdAndSubject_User_IdOrderByCreatedAtAsc(subjectId, userId)
+                .stream()
+                .map(NoteResponse::from)
+                .toList();
+    }
+
     @Transactional
     public NoteResponse update(UUID userId, UUID noteId, NoteRequest request) {
         Note note = findNote(noteId, userId);

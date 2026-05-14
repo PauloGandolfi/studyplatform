@@ -1,5 +1,9 @@
 package com.paulogandolfi.studyplatform.subjects.controller;
 
+import com.paulogandolfi.studyplatform.flashcards.dto.FlashcardResponse;
+import com.paulogandolfi.studyplatform.flashcards.service.FlashcardService;
+import com.paulogandolfi.studyplatform.notes.dto.NoteResponse;
+import com.paulogandolfi.studyplatform.notes.service.NoteService;
 import com.paulogandolfi.studyplatform.subjects.dto.SubjectRequest;
 import com.paulogandolfi.studyplatform.subjects.dto.SubjectResponse;
 import com.paulogandolfi.studyplatform.subjects.service.SubjectService;
@@ -25,14 +29,32 @@ import java.util.UUID;
 public class SubjectController {
 
     private final SubjectService subjectService;
+    private final NoteService noteService;
+    private final FlashcardService flashcardService;
 
-    public SubjectController(SubjectService subjectService) {
+    public SubjectController(
+            SubjectService subjectService,
+            NoteService noteService,
+            FlashcardService flashcardService
+    ) {
         this.subjectService = subjectService;
+        this.noteService = noteService;
+        this.flashcardService = flashcardService;
     }
 
     @GetMapping
     public List<SubjectResponse> list(@AuthenticationPrincipal Jwt jwt) {
         return subjectService.list(currentUserId(jwt));
+    }
+
+    @GetMapping("/{id}/notes")
+    public List<NoteResponse> listNotes(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        return noteService.listBySubject(currentUserId(jwt), id);
+    }
+
+    @GetMapping("/{id}/flashcards")
+    public List<FlashcardResponse> listFlashcards(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        return flashcardService.listBySubject(currentUserId(jwt), id);
     }
 
     @PostMapping

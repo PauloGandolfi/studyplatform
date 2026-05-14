@@ -22,7 +22,9 @@ body {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 
@@ -1003,6 +1005,610 @@ button {
   font-weight: 950;
 }
 
+.notes-page,
+.flashcards-page {
+  display: grid;
+  gap: 18px;
+}
+
+.subjects-page {
+  display: grid;
+  gap: 18px;
+}
+
+.subjects-toolbar,
+.flashcards-toolbar,
+.notes-toolbar {
+  min-height: 82px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 260px) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.subjects-toolbar {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.subjects-toolbar div,
+.flashcards-toolbar div,
+.notes-toolbar div {
+  display: grid;
+  gap: 5px;
+}
+
+.subjects-toolbar span,
+.flashcards-toolbar span,
+.notes-toolbar span,
+.modal-heading span,
+.subject-card-content span,
+.note-detail-heading span {
+  color: #79d8ff;
+  font-size: 0.76rem;
+  font-weight: 950;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.subjects-toolbar strong,
+.flashcards-toolbar strong,
+.notes-toolbar strong {
+  color: #fff;
+  font-size: 1.16rem;
+}
+
+.subjects-toolbar button,
+.flashcards-toolbar button,
+.notes-toolbar button,
+.save-note-button {
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 14px;
+  padding: 0 18px;
+  color: #fff;
+  background: linear-gradient(135deg, #7842ff, #31aff3);
+  font-weight: 950;
+  box-shadow: 0 14px 32px rgba(63, 113, 255, 0.28);
+}
+
+.subjects-toolbar button:disabled,
+.flashcards-toolbar button:disabled,
+.notes-toolbar button:disabled,
+.save-note-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.subjects-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.subject-card {
+  min-height: 190px;
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 14% 0%, rgba(122, 74, 255, 0.14), transparent 11rem),
+    rgba(255, 255, 255, 0.045);
+  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.18);
+}
+
+.subject-card-icon {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  color: #fff;
+  background: linear-gradient(135deg, #7b48ff, #38b6ff);
+  box-shadow: 0 14px 28px rgba(83, 91, 255, 0.25);
+}
+
+.subject-card-icon.tone-1 {
+  background: linear-gradient(135deg, #0f8f9d, #66d7c7);
+}
+
+.subject-card-icon.tone-2 {
+  background: linear-gradient(135deg, #a43f82, #fb6a97);
+}
+
+.subject-card-icon.tone-3 {
+  background: linear-gradient(135deg, #3b66d8, #79d8ff);
+}
+
+.subject-card-content {
+  min-width: 0;
+}
+
+.subject-card-content h2 {
+  margin: 8px 0 10px;
+  color: #fff;
+  font-size: 1.35rem;
+  line-height: 1.12;
+  overflow-wrap: anywhere;
+}
+
+.subject-card-content time {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.84rem;
+}
+
+.subject-card-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.subject-card-actions button {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.subject-card-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(5, 6, 16, 0.74);
+  backdrop-filter: blur(10px);
+}
+
+.subject-modal {
+  width: min(480px, 100%);
+  display: grid;
+  gap: 20px;
+  padding: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(73, 184, 255, 0.14), transparent 12rem),
+    #11142a;
+  box-shadow: 0 26px 78px rgba(0, 0, 0, 0.45);
+}
+
+.modal-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.modal-heading h2 {
+  margin: 8px 0 0;
+  color: #fff;
+  font-size: 1.45rem;
+}
+
+.modal-heading button {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.subject-modal label {
+  display: grid;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.88rem;
+  font-weight: 850;
+}
+
+.subject-modal input,
+.subject-modal select,
+.subject-modal textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  outline: 0;
+  border-radius: 14px;
+  padding: 0 14px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.subject-modal input,
+.subject-modal select {
+  min-height: 50px;
+  padding: 0 14px;
+}
+
+.subject-modal textarea {
+  min-height: 132px;
+  padding: 14px;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.subject-modal select option {
+  color: #141628;
+}
+
+.subject-modal input::placeholder,
+.subject-modal textarea::placeholder {
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.flashcard-modal {
+  width: min(620px, 100%);
+}
+
+.flashcards-toolbar select,
+.notes-toolbar select,
+.note-editor-panel select,
+.note-editor-panel input,
+.note-editor-panel textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  outline: 0;
+  border-radius: 14px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.flashcards-toolbar select,
+.notes-toolbar select,
+.note-editor-panel select,
+.note-editor-panel input {
+  min-height: 46px;
+  padding: 0 14px;
+}
+
+.flashcards-toolbar select option,
+.notes-toolbar select option,
+.note-editor-panel select option {
+  color: #141628;
+}
+
+.notes-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.78fr) minmax(0, 1.38fr) minmax(280px, 0.86fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.flashcards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.flashcard-card {
+  min-height: 330px;
+  display: grid;
+  grid-template-rows: auto minmax(132px, 1fr) auto auto;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 14% 0%, rgba(54, 178, 255, 0.13), transparent 12rem),
+    rgba(255, 255, 255, 0.045);
+  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.18);
+}
+
+.flashcard-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.flashcard-card-top span,
+.flashcard-answer span {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.difficulty-pill {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 0.76rem;
+}
+
+.difficulty-pill.tone-easy {
+  color: #c8f7dc;
+  background: rgba(59, 207, 120, 0.18);
+}
+
+.difficulty-pill.tone-medium {
+  color: #d8ecff;
+  background: rgba(74, 169, 255, 0.18);
+}
+
+.difficulty-pill.tone-hard {
+  color: #ffd3df;
+  background: rgba(242, 86, 132, 0.18);
+}
+
+.flashcard-visual {
+  min-height: 132px;
+  display: grid;
+  align-items: end;
+  padding: 18px;
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.22), transparent 8rem),
+    linear-gradient(135deg, #256bb8, #45c4d0);
+}
+
+.flashcard-visual.tone-1 {
+  background:
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.2), transparent 8rem),
+    linear-gradient(135deg, #7a42d8, #f06595);
+}
+
+.flashcard-visual.tone-2 {
+  background:
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.2), transparent 8rem),
+    linear-gradient(135deg, #168879, #89d17d);
+}
+
+.flashcard-visual p {
+  margin: 0;
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 950;
+  line-height: 1.28;
+  overflow-wrap: anywhere;
+}
+
+.flashcard-answer {
+  display: grid;
+  gap: 6px;
+}
+
+.flashcard-answer p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.95rem;
+  line-height: 1.48;
+  overflow-wrap: anywhere;
+}
+
+.notes-list-panel,
+.note-detail-panel,
+.note-editor-panel,
+.placeholder-section {
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 16% 0%, rgba(54, 178, 255, 0.12), transparent 12rem),
+    rgba(255, 255, 255, 0.045);
+  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.18);
+}
+
+.notes-list-panel {
+  min-height: 520px;
+  padding: 12px;
+}
+
+.notes-list {
+  display: grid;
+  gap: 10px;
+}
+
+.notes-list button {
+  width: 100%;
+  min-height: 142px;
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  padding: 16px;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.035);
+  text-align: left;
+}
+
+.notes-list button.active {
+  border-color: rgba(121, 216, 255, 0.38);
+  background: rgba(72, 171, 255, 0.12);
+}
+
+.notes-list button span {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.notes-list button strong {
+  color: #fff;
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.notes-list button p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.notes-list button time,
+.note-detail-heading time {
+  color: rgba(255, 255, 255, 0.54);
+  font-size: 0.78rem;
+}
+
+.note-detail-panel {
+  min-height: 520px;
+  padding: 26px;
+}
+
+.note-detail-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+.note-detail-heading h2 {
+  margin: 8px 0 8px;
+  color: #fff;
+  font-size: clamp(1.55rem, 2.6vw, 2.25rem);
+  line-height: 1.08;
+}
+
+.note-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.note-actions button {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.note-actions button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.note-content {
+  color: rgba(255, 255, 255, 0.84);
+  font-size: 1rem;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.note-editor-panel {
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+}
+
+.panel-heading.compact {
+  margin-bottom: 2px;
+}
+
+.note-editor-panel label {
+  display: grid;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.88rem;
+  font-weight: 850;
+}
+
+.note-editor-panel textarea {
+  min-height: 240px;
+  padding: 14px;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.note-editor-panel input::placeholder,
+.note-editor-panel textarea::placeholder {
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.ghost-button {
+  min-height: 46px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 0 16px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+  font-weight: 900;
+}
+
+.empty-state,
+.placeholder-section {
+  min-height: 240px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  padding: 26px;
+  color: rgba(255, 255, 255, 0.72);
+  text-align: center;
+}
+
+.empty-state svg,
+.placeholder-section svg {
+  width: 38px;
+  height: 38px;
+  color: #7edbff;
+}
+
+.empty-state strong,
+.placeholder-section h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 1.2rem;
+}
+
+.empty-state p,
+.placeholder-section p {
+  max-width: 430px;
+  margin: 0;
+  line-height: 1.55;
+}
+
+.subjects-empty,
+.flashcards-empty {
+  grid-column: 1 / -1;
+  min-height: 360px;
+}
+
+.detail-empty {
+  min-height: 460px;
+}
+
 @media (max-width: 1180px) {
   .home-page {
     grid-template-columns: 232px minmax(0, 1fr);
@@ -1022,6 +1628,19 @@ button {
 
   .dashboard-panels {
     grid-template-columns: 1fr;
+  }
+
+  .subjects-grid,
+  .flashcards-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .notes-grid {
+    grid-template-columns: minmax(260px, 0.88fr) minmax(0, 1.12fr);
+  }
+
+  .note-editor-panel {
+    grid-column: 1 / -1;
   }
 }
 
@@ -1123,6 +1742,37 @@ button {
 
   .hero-content {
     width: min(100%, 620px);
+  }
+
+  .notes-toolbar,
+  .flashcards-toolbar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .subjects-toolbar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .subjects-toolbar button,
+  .flashcards-toolbar button,
+  .notes-toolbar button {
+    width: 100%;
+  }
+
+  .subjects-grid,
+  .flashcards-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .notes-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .notes-list-panel,
+  .note-detail-panel {
+    min-height: auto;
   }
 }
 
@@ -1277,6 +1927,34 @@ button {
     width: 50px;
     height: 50px;
     border-radius: 15px;
+  }
+
+  .note-detail-panel,
+  .note-editor-panel,
+  .flashcard-card,
+  .subject-modal {
+    padding: 18px;
+  }
+
+  .note-detail-heading {
+    flex-direction: column;
+  }
+
+  .note-actions {
+    width: 100%;
+  }
+
+  .note-actions button {
+    width: 46px;
+  }
+
+  .editor-actions {
+    flex-direction: column;
+  }
+
+  .save-note-button,
+  .ghost-button {
+    width: 100%;
   }
 
   .activity-panel,
