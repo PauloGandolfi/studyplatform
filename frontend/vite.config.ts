@@ -9,6 +9,18 @@ export default defineConfig({
       "/auth": {
         target: "http://localhost:8081",
         changeOrigin: true
+      },
+      "/notes": {
+        target: "http://localhost:8081",
+        changeOrigin: true
+      },
+      "/subjects": {
+        target: "http://localhost:8081",
+        changeOrigin: true
+      },
+      "/flashcards": {
+        target: "http://localhost:8081",
+        changeOrigin: true
       }
     }
   }

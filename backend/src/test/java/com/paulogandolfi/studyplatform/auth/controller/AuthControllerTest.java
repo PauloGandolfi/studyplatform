@@ -1,5 +1,7 @@
 package com.paulogandolfi.studyplatform.auth.controller;
 
+import com.paulogandolfi.studyplatform.auth.entity.PasswordResetToken;
+import com.paulogandolfi.studyplatform.auth.repository.PasswordResetTokenRepository;
 import com.paulogandolfi.studyplatform.users.entity.User;
 import com.paulogandolfi.studyplatform.users.repository.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -12,6 +14,11 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.time.LocalDateTime;
+import java.util.HexFormat;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -30,6 +37,9 @@ class AuthControllerTest {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private PasswordResetTokenRepository passwordResetTokenRepository;
 
     @Autowired
     private JwtDecoder jwtDecoder;
@@ -118,7 +128,47 @@ class AuthControllerTest {
                                   "email": "wrong-password@example.com",
                                   "password": "wrong-password"
                                 }
-                                """))
+                """))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void forgotPasswordReturnsGenericResponse() throws Exception {
+        mockMvc.perform(post("/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "unknown@example.com"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Se o email existir, enviaremos um link de recuperacao."));
+    }
+
+    @Test
+    void resetPasswordUpdatesPasswordWithValidToken() throws Exception {
+        User user = userRepository.save(new User("Reset User", "reset@example.com", passwordEncoder.encode("password123")));
+        String token = "reset-token";
+        passwordResetTokenRepository.save(new PasswordResetToken(user, hashToken(token), LocalDateTime.now().plusMinutes(30)));
+
+        mockMvc.perform(post("/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "token": "reset-token",
+                                  "password": "new-password123"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Senha atualizada com sucesso."));
+
+        User updatedUser = userRepository.findByEmail("reset@example.com").orElseThrow();
+
+        assertThat(passwordEncoder.matches("new-password123", updatedUser.getPassword())).isTrue();
+    }
+
+    private static String hashToken(String token) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        return HexFormat.of().formatHex(digest.digest(token.getBytes(StandardCharsets.UTF_8)));
     }
 }

@@ -1,8 +1,9 @@
-import { FormEvent, ReactNode, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import spaceImage from "./assets/space-login.png";
 
-type AuthMode = "login" | "register";
+type AuthMode = "login" | "register" | "forgot" | "reset";
 type AppView = "auth" | "home";
+type HomeSection = "dashboard" | "subjects" | "notes" | "flashcards" | "reviews" | "stats" | "profile" | "settings";
 
 type Feedback = {
   type: "success" | "error";
@@ -17,52 +18,293 @@ type LoginResponse = {
   tokenType: string;
 };
 
+type GoogleCredentialResponse = {
+  credential?: string;
+};
+
+type Subject = {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type Note = {
+  id: string;
+  subjectId: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type Difficulty = "EASY" | "MEDIUM" | "HARD";
+
+type Flashcard = {
+  id: string;
+  subjectId: string;
+  question: string;
+  answer: string;
+  difficulty: Difficulty;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type NoteFormValues = {
+  subjectId: string;
+  title: string;
+  content: string;
+};
+
+type FlashcardFormValues = {
+  subjectId: string;
+  question: string;
+  answer: string;
+  difficulty: Difficulty;
+};
+
+type SubjectFormValues = {
+  name: string;
+};
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: {
+            client_id: string;
+            callback: (response: GoogleCredentialResponse) => void;
+          }) => void;
+          renderButton: (parent: HTMLElement, options: Record<string, string | number>) => void;
+          cancel: () => void;
+        };
+      };
+    };
+  }
+}
+
 const initialValues = {
   name: "",
   email: "",
   password: ""
 };
 
+const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+const initialResetToken = new URLSearchParams(window.location.search).get("resetToken") ?? "";
+
 const overviewCards = [
-  { label: "Subjects", value: "12", detail: "assuntos criados", icon: "book" },
-  { label: "Notes", value: "84", detail: "anotacoes no total", icon: "note" },
+  { label: "Assuntos", value: "12", detail: "assuntos criados", icon: "book" },
+  { label: "Anotações", value: "84", detail: "anotacoes no total", icon: "note" },
   { label: "Flashcards", value: "256", detail: "cartoes criados", icon: "cards" },
   { label: "Revisoes", value: "18", detail: "para hoje", icon: "calendar" }
 ];
 
 const recentActivities = [
-  { title: "Note: Ciclo de Vida das Estrelas", subject: "Astronomia", time: "2h atras" },
+  { title: "Anotacao: Ciclo de Vida das Estrelas", subject: "Astronomia", time: "2h atras" },
   { title: "Flashcard: Java - Collections", subject: "Java", time: "4h atras" },
-  { title: "Note: Regras de Derivacao", subject: "Calculo", time: "1 dia atras" },
+  { title: "Anotacao: Regras de Derivacao", subject: "Calculo", time: "1 dia atras" },
   { title: "Flashcard: SQL - JOINs", subject: "Banco de Dados", time: "1 dia atras" }
 ];
 
-const navItems = [
-  { label: "Dashboard", icon: "dashboard" },
-  { label: "Subjects", icon: "book" },
-  { label: "Notes", icon: "note" },
-  { label: "Flashcards", icon: "cards" },
-  { label: "Revisoes", icon: "calendar" },
-  { label: "Estatisticas", icon: "chart" },
-  { label: "Perfil", icon: "user" },
-  { label: "Configuracoes", icon: "settings" }
+const navItems: Array<{
+  label: string;
+  icon: string;
+  section: HomeSection;
+}> = [
+  { label: "Dashboard", icon: "dashboard", section: "dashboard" },
+  { label: "Assuntos", icon: "book", section: "subjects" },
+  { label: "Anotações", icon: "note", section: "notes" },
+  { label: "Flashcards", icon: "cards", section: "flashcards" },
+  { label: "Revisoes", icon: "calendar", section: "reviews" },
+  { label: "Estatisticas", icon: "chart", section: "stats" },
+  { label: "Perfil", icon: "user", section: "profile" },
+  { label: "Configuracoes", icon: "settings", section: "settings" }
 ];
 
+const emptyNoteForm: NoteFormValues = {
+  subjectId: "",
+  title: "",
+  content: ""
+};
+
+const emptyFlashcardForm: FlashcardFormValues = {
+  subjectId: "",
+  question: "",
+  answer: "",
+  difficulty: "MEDIUM"
+};
+
+const emptySubjectForm: SubjectFormValues = {
+  name: ""
+};
+
+const placeholderTitles: Record<HomeSection, string> = {
+  dashboard: "Dashboard",
+  subjects: "Assuntos",
+  notes: "Anotações",
+  flashcards: "Flashcards",
+  reviews: "Revisoes",
+  stats: "Estatisticas",
+  profile: "Perfil",
+  settings: "Configuracoes"
+};
+
+const placeholderCopy: Record<HomeSection, string> = {
+  dashboard: "",
+  subjects: "",
+  notes: "",
+  flashcards: "Flashcards entram depois que suas anotacoes estiverem organizadas.",
+  reviews: "Revisoes vao usar seu progresso e seus cards para montar a fila diaria.",
+  stats: "Estatisticas vao consolidar tempo de estudo, revisoes e criacao de conteudo.",
+  profile: "Perfil vai reunir dados da conta e preferencias de estudo.",
+  settings: "Configuracoes vao concentrar ajustes do aplicativo."
+};
+
+const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit"
+});
+
+const notePreviewLimit = 128;
+
+function authorizationHeaders() {
+  const token = localStorage.getItem("studyplatform_token");
+
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function apiRequest<T>(endpoint: string, options: RequestInit = {}) {
+  const headers = new Headers(options.headers);
+  const authHeaders = authorizationHeaders();
+
+  Object.entries(authHeaders).forEach(([key, value]) => headers.set(key, value));
+
+  if (options.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  const response = await fetch(endpoint, {
+    ...options,
+    headers
+  });
+  const data = await readResponse(response);
+
+  if (!response.ok) {
+    throw new Error(getErrorMessage(response.status, data));
+  }
+
+  return data as T;
+}
+
+function buildNoteForm(note: Note | null, fallbackSubjectId: string): NoteFormValues {
+  if (!note) {
+    return {
+      subjectId: fallbackSubjectId,
+      title: "",
+      content: ""
+    };
+  }
+
+  return {
+    subjectId: note.subjectId,
+    title: note.title,
+    content: note.content
+  };
+}
+
+function buildFlashcardForm(flashcard: Flashcard | null, fallbackSubjectId: string): FlashcardFormValues {
+  if (!flashcard) {
+    return {
+      subjectId: fallbackSubjectId,
+      question: "",
+      answer: "",
+      difficulty: "MEDIUM"
+    };
+  }
+
+  return {
+    subjectId: flashcard.subjectId,
+    question: flashcard.question,
+    answer: flashcard.answer,
+    difficulty: flashcard.difficulty
+  };
+}
+
+function formatDate(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return dateFormatter.format(date);
+}
+
+function getNotePreview(content: string) {
+  const compact = content.replace(/\s+/g, " ").trim();
+
+  if (compact.length <= notePreviewLimit) {
+    return compact;
+  }
+
+  return `${compact.slice(0, notePreviewLimit).trim()}...`;
+}
+
+function getFlashcardPreview(value: string) {
+  const compact = value.replace(/\s+/g, " ").trim();
+
+  if (compact.length <= 96) {
+    return compact;
+  }
+
+  return `${compact.slice(0, 96).trim()}...`;
+}
+
+function getDifficultyLabel(difficulty: Difficulty) {
+  if (difficulty === "EASY") {
+    return "Facil";
+  }
+
+  if (difficulty === "HARD") {
+    return "Dificil";
+  }
+
+  return "Media";
+}
+
+function getSubjectName(subjects: Subject[], subjectId: string) {
+  return subjects.find((subject) => subject.id === subjectId)?.name ?? "Assunto removido";
+}
+
+function getSectionLabel(section: HomeSection) {
+  return placeholderTitles[section];
+}
+
 function App() {
-  const [mode, setMode] = useState<AuthMode>("login");
+  const [mode, setMode] = useState<AuthMode>(() => (initialResetToken ? "reset" : "login"));
   const [currentView, setCurrentView] = useState<AppView>(() =>
     localStorage.getItem("studyplatform_token") ? "home" : "auth"
   );
   const [values, setValues] = useState(initialValues);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
   const [userName, setUserName] = useState<string | null>(() => getStoredUserName());
+  const [resetToken, setResetToken] = useState(initialResetToken);
+  const [currentSection, setCurrentSection] = useState<HomeSection>("dashboard");
+  const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
   const isRegister = mode === "register";
-  const title = isRegister ? "Criar conta" : "Entrar";
-  const subtitle = isRegister
-    ? "Comece sua jornada de estudos em poucos segundos."
-    : "Acesse seu painel e continue de onde parou.";
+  const isForgotPassword = mode === "forgot";
+  const isResetPassword = mode === "reset";
+  const showPassword = !isForgotPassword;
+  const showEmail = !isResetPassword;
+  const title = getAuthTitle(mode);
+  const subtitle = getAuthSubtitle(mode);
 
   const passwordHint = useMemo(() => {
     if (values.password.length === 0) {
@@ -86,24 +328,100 @@ function App() {
     setValues(initialValues);
     setFeedback(null);
     setUserName(null);
+    if (nextMode !== "reset") {
+      setResetToken("");
+      clearResetTokenFromUrl();
+    }
   }
+
+  const handleGoogleCredential = useCallback(async (response: GoogleCredentialResponse) => {
+    if (!response.credential) {
+      setFeedback({ type: "error", message: "Nao foi possivel entrar com Google." });
+      return;
+    }
+
+    setIsGoogleSubmitting(true);
+    setFeedback(null);
+
+    try {
+      const result = await fetch("/auth/google", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ idToken: response.credential })
+      });
+
+      const data = await readResponse(result);
+
+      if (!result.ok) {
+        throw new Error(getErrorMessage(result.status, data));
+      }
+
+      completeLogin(data as LoginResponse);
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Nao foi possivel entrar com Google."
+      });
+    } finally {
+      setIsGoogleSubmitting(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (mode !== "login" || !googleClientId || !googleButtonRef.current) {
+      return;
+    }
+
+    let cancelled = false;
+    const clientId = googleClientId;
+
+    function renderGoogleButton() {
+      if (cancelled || !window.google || !googleButtonRef.current) {
+        return;
+      }
+
+      googleButtonRef.current.innerHTML = "";
+      window.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: handleGoogleCredential
+      });
+      window.google.accounts.id.renderButton(googleButtonRef.current, {
+        theme: "outline",
+        size: "large",
+        text: "continue_with",
+        shape: "rectangular",
+        width: 360
+      });
+    }
+
+    if (window.google) {
+      renderGoogleButton();
+    } else {
+      const script = document.createElement("script");
+      script.src = "https://accounts.google.com/gsi/client";
+      script.async = true;
+      script.defer = true;
+      script.onload = renderGoogleButton;
+      document.head.appendChild(script);
+    }
+
+    return () => {
+      cancelled = true;
+      window.google?.accounts.id.cancel();
+    };
+  }, [handleGoogleCredential, mode]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
     setFeedback(null);
 
-    const endpoint = isRegister ? "/auth/register" : "/auth/login";
-    const payload = isRegister
-      ? {
-          name: values.name.trim(),
-          email: values.email.trim(),
-          password: values.password
-        }
-      : {
-          email: values.email.trim(),
-          password: values.password
-        };
+    const { endpoint, payload } = getAuthRequest(mode, values, resetToken);
 
     try {
       const response = await fetch(endpoint, {
@@ -130,12 +448,28 @@ function App() {
         return;
       }
 
+      if (isForgotPassword) {
+        setFeedback({
+          type: "success",
+          message: getResponseMessage(data, "Se o email existir, enviaremos um link de recuperacao.")
+        });
+        return;
+      }
+
+      if (isResetPassword) {
+        setMode("login");
+        setResetToken("");
+        setValues(initialValues);
+        clearResetTokenFromUrl();
+        setFeedback({
+          type: "success",
+          message: getResponseMessage(data, "Senha atualizada com sucesso. Entre com a nova senha.")
+        });
+        return;
+      }
+
       const loginData = data as LoginResponse;
-      localStorage.setItem("studyplatform_token", loginData.accessToken);
-      localStorage.setItem("studyplatform_user", JSON.stringify(loginData));
-      setUserName(loginData.name);
-      setCurrentView("home");
-      setValues(initialValues);
+      completeLogin(loginData);
     } catch (error) {
       setFeedback({
         type: "error",
@@ -156,10 +490,26 @@ function App() {
     setUserName(null);
     setFeedback(null);
     setMode("login");
+    setCurrentSection("dashboard");
+  }
+
+  function completeLogin(loginData: LoginResponse) {
+    localStorage.setItem("studyplatform_token", loginData.accessToken);
+    localStorage.setItem("studyplatform_user", JSON.stringify(loginData));
+    setUserName(loginData.name);
+    setCurrentView("home");
+    setValues(initialValues);
   }
 
   if (currentView === "home") {
-    return <HomePage userName={userName ?? "Paulo"} onLogout={handleLogout} />;
+    return (
+      <HomePage
+        currentSection={currentSection}
+        userName={userName ?? "Paulo"}
+        onLogout={handleLogout}
+        onSectionChange={setCurrentSection}
+      />
+    );
   }
 
   return (
@@ -177,22 +527,28 @@ function App() {
 
         <div className="form-panel">
           <div className="form-card">
-            <div className="mode-toggle" aria-label="Escolher fluxo">
-              <button
-                type="button"
-                className={mode === "login" ? "active" : ""}
-                onClick={() => changeMode("login")}
-              >
-                Entrar
+            {mode === "login" || mode === "register" ? (
+              <div className="mode-toggle" aria-label="Escolher fluxo">
+                <button
+                  type="button"
+                  className={mode === "login" ? "active" : ""}
+                  onClick={() => changeMode("login")}
+                >
+                  Entrar
+                </button>
+                <button
+                  type="button"
+                  className={mode === "register" ? "active" : ""}
+                  onClick={() => changeMode("register")}
+                >
+                  Criar conta
+                </button>
+              </div>
+            ) : (
+              <button className="back-button" type="button" onClick={() => changeMode("login")}>
+                Voltar ao login
               </button>
-              <button
-                type="button"
-                className={mode === "register" ? "active" : ""}
-                onClick={() => changeMode("register")}
-              >
-                Criar conta
-              </button>
-            </div>
+            )}
 
             <div className="heading-group">
               <p className="eyebrow">Study dashboard</p>
@@ -226,40 +582,52 @@ function App() {
                 </label>
               ) : null}
 
-              <label>
-                Email
-                <span className="input-wrap">
-                  <MailIcon />
-                  <input
-                    type="email"
-                    autoComplete="email"
-                    value={values.email}
-                    onChange={(event) => updateField("email", event.target.value)}
-                    placeholder="voce@email.com"
-                    maxLength={180}
-                    required
-                  />
-                </span>
-              </label>
+              {showEmail ? (
+                <label>
+                  Email
+                  <span className="input-wrap">
+                    <MailIcon />
+                    <input
+                      type="email"
+                      autoComplete="email"
+                      value={values.email}
+                      onChange={(event) => updateField("email", event.target.value)}
+                      placeholder="voce@email.com"
+                      maxLength={180}
+                      required
+                    />
+                  </span>
+                </label>
+              ) : null}
 
-              <label>
-                Senha
-                <span className="input-wrap">
-                  <LockIcon />
-                  <input
-                    type="password"
-                    autoComplete={isRegister ? "new-password" : "current-password"}
-                    value={values.password}
-                    onChange={(event) => updateField("password", event.target.value)}
-                    placeholder="No minimo 8 caracteres"
-                    minLength={8}
-                    maxLength={72}
-                    required
-                  />
-                </span>
-              </label>
+              {showPassword ? (
+                <label>
+                  {isResetPassword ? "Nova senha" : "Senha"}
+                  <span className="input-wrap">
+                    <LockIcon />
+                    <input
+                      type="password"
+                      autoComplete={isRegister || isResetPassword ? "new-password" : "current-password"}
+                      value={values.password}
+                      onChange={(event) => updateField("password", event.target.value)}
+                      placeholder="No minimo 8 caracteres"
+                      minLength={8}
+                      maxLength={72}
+                      required
+                    />
+                  </span>
+                </label>
+              ) : null}
 
-              <p className="password-hint">{passwordHint}</p>
+              {showPassword ? <p className="password-hint">{passwordHint}</p> : null}
+
+              {mode === "login" ? (
+                <div className="forgot-row">
+                  <button type="button" onClick={() => changeMode("forgot")}>
+                    Esqueci minha senha
+                  </button>
+                </div>
+              ) : null}
 
               {feedback ? (
                 <div className={`feedback ${feedback.type}`} role="status">
@@ -270,21 +638,37 @@ function App() {
               <button className="submit-button" type="submit" disabled={isSubmitting}>
                 {isSubmitting
                   ? "Enviando..."
-                  : isRegister
-                    ? "Criar minha conta"
-                    : "Fazer login"}
+                  : getSubmitLabel(mode)}
               </button>
             </form>
 
-            <p className="switch-copy">
-              {isRegister ? "Ja tem uma conta?" : "Ainda nao tem conta?"}
-              <button
-                type="button"
-                onClick={() => changeMode(isRegister ? "login" : "register")}
-              >
-                {isRegister ? "Entrar" : "Criar conta"}
-              </button>
-            </p>
+            {mode === "login" ? (
+              <div className="google-section">
+                <div className="auth-divider">
+                  <span>ou</span>
+                </div>
+                {googleClientId ? (
+                  <>
+                    <div ref={googleButtonRef} className="google-button-slot" />
+                    {isGoogleSubmitting ? <p className="google-status">Entrando com Google...</p> : null}
+                  </>
+                ) : (
+                  <p className="google-status">Configure VITE_GOOGLE_CLIENT_ID para habilitar Google.</p>
+                )}
+              </div>
+            ) : null}
+
+            {mode === "login" || mode === "register" ? (
+              <p className="switch-copy">
+                {isRegister ? "Ja tem uma conta?" : "Ainda nao tem conta?"}
+                <button
+                  type="button"
+                  onClick={() => changeMode(isRegister ? "login" : "register")}
+                >
+                  {isRegister ? "Entrar" : "Criar conta"}
+                </button>
+              </p>
+            ) : null}
           </div>
         </div>
       </section>
@@ -292,7 +676,17 @@ function App() {
   );
 }
 
-function HomePage({ userName, onLogout }: { userName: string; onLogout: () => void }) {
+function HomePage({
+  currentSection,
+  userName,
+  onLogout,
+  onSectionChange
+}: {
+  currentSection: HomeSection;
+  userName: string;
+  onLogout: () => void;
+  onSectionChange: (section: HomeSection) => void;
+}) {
   const initials = getInitials(userName);
 
   return (
@@ -308,8 +702,13 @@ function HomePage({ userName, onLogout }: { userName: string; onLogout: () => vo
         </div>
 
         <nav className="side-nav" aria-label="Navegacao principal">
-          {navItems.map((item, index) => (
-            <button className={index === 0 ? "active" : ""} type="button" key={item.label}>
+          {navItems.map((item) => (
+            <button
+              className={currentSection === item.section ? "active" : ""}
+              type="button"
+              key={item.label}
+              onClick={() => onSectionChange(item.section)}
+            >
               <DashboardIcon name={item.icon} />
               <span>{item.label}</span>
             </button>
@@ -332,8 +731,12 @@ function HomePage({ userName, onLogout }: { userName: string; onLogout: () => vo
       <section className="dashboard">
         <header className="dashboard-header">
           <div>
-            <h1>Bem-vindo(a) de volta!</h1>
-            <p>Pronto para mais uma sessao de estudos?</p>
+            <h1>{currentSection === "dashboard" ? "Bem-vindo(a) de volta!" : getSectionLabel(currentSection)}</h1>
+            <p>
+              {currentSection === "dashboard"
+                ? "Pronto para mais uma sessao de estudos?"
+                : getSectionSubtitle(currentSection)}
+            </p>
           </div>
 
           <div className="header-actions">
@@ -351,6 +754,25 @@ function HomePage({ userName, onLogout }: { userName: string; onLogout: () => vo
           </div>
         </header>
 
+        {currentSection === "subjects" ? (
+          <SubjectsPage />
+        ) : currentSection === "notes" ? (
+          <NotesPage />
+        ) : currentSection === "flashcards" ? (
+          <FlashcardsPage />
+        ) : currentSection === "dashboard" ? (
+          <DashboardHome />
+        ) : (
+          <PlaceholderSection section={currentSection} />
+        )}
+      </section>
+    </main>
+  );
+}
+
+function DashboardHome() {
+  return (
+    <>
         <section className="hero-dashboard">
           <img src={spaceImage} alt="" />
           <div className="hero-shade" />
@@ -466,8 +888,865 @@ function HomePage({ userName, onLogout }: { userName: string; onLogout: () => vo
             </div>
           </article>
         </section>
+    </>
+  );
+}
+
+function SubjectsPage() {
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [deletingSubjectId, setDeletingSubjectId] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
+  const [formValues, setFormValues] = useState<SubjectFormValues>(emptySubjectForm);
+
+  const loadSubjects = useCallback(async () => {
+    setIsLoading(true);
+
+    try {
+      const subjectsData = await apiRequest<Subject[]>("/subjects");
+      setSubjects(subjectsData);
+      setFeedback(null);
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Nao foi possivel carregar seus assuntos."
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSubjects();
+  }, [loadSubjects]);
+
+  function openCreateModal() {
+    setEditingSubject(null);
+    setFormValues(emptySubjectForm);
+    setFeedback(null);
+    setIsModalOpen(true);
+  }
+
+  function openEditModal(subject: Subject) {
+    setEditingSubject(subject);
+    setFormValues({ name: subject.name });
+    setFeedback(null);
+    setIsModalOpen(true);
+  }
+
+  function closeSubjectModal() {
+    if (isSaving) {
+      return;
+    }
+
+    setIsModalOpen(false);
+    setEditingSubject(null);
+    setFormValues(emptySubjectForm);
+  }
+
+  async function handleSubjectSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSaving(true);
+    setFeedback(null);
+
+    const payload = {
+      name: formValues.name.trim()
+    };
+
+    try {
+      const savedSubject = await apiRequest<Subject>(editingSubject ? `/subjects/${editingSubject.id}` : "/subjects", {
+        method: editingSubject ? "PUT" : "POST",
+        body: JSON.stringify(payload)
+      });
+
+      setSubjects((current) => {
+        if (editingSubject) {
+          return current.map((subject) => (subject.id === savedSubject.id ? savedSubject : subject));
+        }
+
+        return [savedSubject, ...current];
+      });
+      setFeedback({
+        type: "success",
+        message: editingSubject ? "Assunto atualizado." : "Assunto criado."
+      });
+      setIsModalOpen(false);
+      setEditingSubject(null);
+      setFormValues(emptySubjectForm);
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Nao foi possivel salvar o assunto."
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleDeleteSubject(subject: Subject) {
+    setDeletingSubjectId(subject.id);
+    setFeedback(null);
+
+    try {
+      await apiRequest<null>(`/subjects/${subject.id}`, { method: "DELETE" });
+      setSubjects((current) => current.filter((item) => item.id !== subject.id));
+      setFeedback({ type: "success", message: "Assunto excluido." });
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Nao foi possivel excluir o assunto."
+      });
+    } finally {
+      setDeletingSubjectId(null);
+    }
+  }
+
+  return (
+    <div className="subjects-page">
+      <section className="subjects-toolbar" aria-label="Controles de assuntos">
+        <div>
+          <span>{isLoading ? "Carregando" : `${subjects.length} assuntos`}</span>
+          <strong>Organize suas materias</strong>
+        </div>
+
+        <button type="button" onClick={openCreateModal}>
+          <DashboardIcon name="plus" />
+          Novo assunto
+        </button>
       </section>
-    </main>
+
+      {feedback ? (
+        <div className={`feedback ${feedback.type}`} role="status">
+          {feedback.message}
+        </div>
+      ) : null}
+
+      <section className="subjects-grid" aria-label="Lista de assuntos">
+        {!isLoading && subjects.length === 0 ? (
+          <div className="empty-state subjects-empty">
+            <DashboardIcon name="book" />
+            <strong>Nenhum assunto ainda</strong>
+            <p>Crie seu primeiro assunto para conectar anotacoes, flashcards e revisoes.</p>
+          </div>
+        ) : (
+          subjects.map((subject, index) => (
+            <article className="subject-card" key={subject.id}>
+              <div className={`subject-card-icon tone-${index % 4}`}>
+                <DashboardIcon name="book" />
+              </div>
+
+              <div className="subject-card-content">
+                <span>Assunto</span>
+                <h2>{subject.name}</h2>
+                <time>Atualizado em {formatDate(subject.updatedAt)}</time>
+              </div>
+
+              <div className="subject-card-actions">
+                <button
+                  type="button"
+                  onClick={() => openEditModal(subject)}
+                  disabled={false}
+                  aria-label={`Editar ${subject.name}`}
+                >
+                  <DashboardIcon name="edit" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteSubject(subject)}
+                  disabled={deletingSubjectId === subject.id}
+                  aria-label={`Excluir ${subject.name}`}
+                >
+                  <DashboardIcon name="trash" />
+                </button>
+              </div>
+            </article>
+          ))
+        )}
+      </section>
+
+      {isModalOpen ? (
+        <div className="modal-backdrop" role="presentation" onMouseDown={closeSubjectModal}>
+          <form
+            className="subject-modal"
+            onSubmit={handleSubjectSubmit}
+            onMouseDown={(event) => event.stopPropagation()}
+            aria-label={editingSubject ? "Editar assunto" : "Novo assunto"}
+          >
+            <div className="modal-heading">
+              <div>
+                <span>{editingSubject ? "Editar" : "Novo"}</span>
+                <h2>{editingSubject ? "Editar assunto" : "Novo assunto"}</h2>
+              </div>
+              <button type="button" onClick={closeSubjectModal} aria-label="Fechar modal">
+                <DashboardIcon name="close" />
+              </button>
+            </div>
+
+            <label>
+              Nome do assunto
+              <input
+                type="text"
+                value={formValues.name}
+                onChange={(event) => setFormValues({ name: event.target.value })}
+                placeholder="Ex: Matematica"
+                maxLength={120}
+                required
+                autoFocus
+              />
+            </label>
+
+            <div className="editor-actions">
+              <button type="button" className="ghost-button" onClick={closeSubjectModal}>
+                Cancelar
+              </button>
+              <button type="submit" className="save-note-button" disabled={isSaving}>
+                <DashboardIcon name="check" />
+                {isSaving ? "Salvando..." : "Salvar"}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function FlashcardsPage() {
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
+  const [selectedSubjectId, setSelectedSubjectId] = useState("all");
+  const [editingFlashcard, setEditingFlashcard] = useState<Flashcard | null>(null);
+  const [formValues, setFormValues] = useState<FlashcardFormValues>(emptyFlashcardForm);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [deletingFlashcardId, setDeletingFlashcardId] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const fallbackSubjectId = selectedSubjectId === "all" ? subjects[0]?.id ?? "" : selectedSubjectId;
+  const filteredSubjectName = selectedSubjectId === "all" ? "Todos os assuntos" : getSubjectName(subjects, selectedSubjectId);
+
+  const loadFlashcards = useCallback(async () => {
+    setIsLoading(true);
+
+    try {
+      const [subjectsData, flashcardsData] = await Promise.all([
+        apiRequest<Subject[]>("/subjects"),
+        apiRequest<Flashcard[]>(selectedSubjectId === "all" ? "/flashcards" : `/subjects/${selectedSubjectId}/flashcards`)
+      ]);
+
+      setSubjects(subjectsData);
+      setFlashcards(flashcardsData);
+      setFeedback(null);
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Nao foi possivel carregar seus flashcards."
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedSubjectId]);
+
+  useEffect(() => {
+    loadFlashcards();
+  }, [loadFlashcards]);
+
+  function openCreateModal() {
+    setEditingFlashcard(null);
+    setFormValues(buildFlashcardForm(null, fallbackSubjectId));
+    setFeedback(null);
+    setIsModalOpen(true);
+  }
+
+  function openEditModal(flashcard: Flashcard) {
+    setEditingFlashcard(flashcard);
+    setFormValues(buildFlashcardForm(flashcard, fallbackSubjectId));
+    setFeedback(null);
+    setIsModalOpen(true);
+  }
+
+  function closeFlashcardModal() {
+    if (isSaving) {
+      return;
+    }
+
+    setIsModalOpen(false);
+    setEditingFlashcard(null);
+    setFormValues(emptyFlashcardForm);
+  }
+
+  function updateFlashcardField<K extends keyof FlashcardFormValues>(field: K, value: FlashcardFormValues[K]) {
+    setFormValues((current) => ({ ...current, [field]: value }));
+    setFeedback(null);
+  }
+
+  async function handleFlashcardSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!formValues.subjectId) {
+      setFeedback({ type: "error", message: "Escolha um assunto antes de salvar o flashcard." });
+      return;
+    }
+
+    setIsSaving(true);
+    setFeedback(null);
+
+    const payload = {
+      subjectId: formValues.subjectId,
+      question: formValues.question.trim(),
+      answer: formValues.answer.trim(),
+      difficulty: formValues.difficulty
+    };
+
+    try {
+      const savedFlashcard = await apiRequest<Flashcard>(
+        editingFlashcard ? `/flashcards/${editingFlashcard.id}` : "/flashcards",
+        {
+          method: editingFlashcard ? "PUT" : "POST",
+          body: JSON.stringify(payload)
+        }
+      );
+
+      setFlashcards((current) => {
+        if (editingFlashcard) {
+          return current.map((flashcard) => (flashcard.id === savedFlashcard.id ? savedFlashcard : flashcard));
+        }
+
+        if (selectedSubjectId !== "all" && savedFlashcard.subjectId !== selectedSubjectId) {
+          return current;
+        }
+
+        return [savedFlashcard, ...current];
+      });
+      setFeedback({
+        type: "success",
+        message: editingFlashcard ? "Flashcard atualizado." : "Flashcard criado."
+      });
+      setIsModalOpen(false);
+      setEditingFlashcard(null);
+      setFormValues(buildFlashcardForm(null, savedFlashcard.subjectId));
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Nao foi possivel salvar o flashcard."
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleDeleteFlashcard(flashcard: Flashcard) {
+    setDeletingFlashcardId(flashcard.id);
+    setFeedback(null);
+
+    try {
+      await apiRequest<null>(`/flashcards/${flashcard.id}`, { method: "DELETE" });
+      setFlashcards((current) => current.filter((item) => item.id !== flashcard.id));
+      setFeedback({ type: "success", message: "Flashcard excluido." });
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Nao foi possivel excluir o flashcard."
+      });
+    } finally {
+      setDeletingFlashcardId(null);
+    }
+  }
+
+  return (
+    <div className="flashcards-page">
+      <section className="flashcards-toolbar" aria-label="Controles de flashcards">
+        <div>
+          <span>{isLoading ? "Carregando" : `${flashcards.length} flashcards`}</span>
+          <strong>{filteredSubjectName}</strong>
+        </div>
+
+        <label>
+          <span className="sr-only">Filtrar por assunto</span>
+          <select
+            value={selectedSubjectId}
+            onChange={(event) => {
+              setSelectedSubjectId(event.target.value);
+              setEditingFlashcard(null);
+              setFormValues(emptyFlashcardForm);
+            }}
+          >
+            <option value="all">Todos os assuntos</option>
+            {subjects.map((subject) => (
+              <option value={subject.id} key={subject.id}>
+                {subject.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <button type="button" onClick={openCreateModal} disabled={subjects.length === 0}>
+          <DashboardIcon name="plus" />
+          Novo flashcard
+        </button>
+      </section>
+
+      {feedback ? (
+        <div className={`feedback ${feedback.type}`} role="status">
+          {feedback.message}
+        </div>
+      ) : null}
+
+      <section className="flashcards-grid" aria-label="Lista de flashcards">
+        {isLoading ? (
+          <div className="empty-state flashcards-empty">Carregando flashcards...</div>
+        ) : flashcards.length === 0 ? (
+          <div className="empty-state flashcards-empty">
+            <DashboardIcon name="cards" />
+            <strong>Nenhum flashcard ainda</strong>
+            <p>Crie cards com pergunta e resposta para revisar seus assuntos.</p>
+          </div>
+        ) : (
+          flashcards.map((flashcard, index) => (
+            <article className="flashcard-card" key={flashcard.id}>
+              <div className="flashcard-card-top">
+                <span>{getSubjectName(subjects, flashcard.subjectId)}</span>
+                <strong className={`difficulty-pill tone-${flashcard.difficulty.toLowerCase()}`}>
+                  {getDifficultyLabel(flashcard.difficulty)}
+                </strong>
+              </div>
+
+              <div className={`flashcard-visual tone-${index % 3}`}>
+                <p>{getFlashcardPreview(flashcard.question)}</p>
+              </div>
+
+              <div className="flashcard-answer">
+                <span>Resposta</span>
+                <p>{getFlashcardPreview(flashcard.answer)}</p>
+              </div>
+
+              <div className="subject-card-actions">
+                <button
+                  type="button"
+                  onClick={() => openEditModal(flashcard)}
+                  aria-label="Editar flashcard"
+                >
+                  <DashboardIcon name="edit" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteFlashcard(flashcard)}
+                  disabled={deletingFlashcardId === flashcard.id}
+                  aria-label="Excluir flashcard"
+                >
+                  <DashboardIcon name="trash" />
+                </button>
+              </div>
+            </article>
+          ))
+        )}
+      </section>
+
+      {isModalOpen ? (
+        <div className="modal-backdrop" role="presentation" onMouseDown={closeFlashcardModal}>
+          <form
+            className="subject-modal flashcard-modal"
+            onSubmit={handleFlashcardSubmit}
+            onMouseDown={(event) => event.stopPropagation()}
+            aria-label={editingFlashcard ? "Editar flashcard" : "Novo flashcard"}
+          >
+            <div className="modal-heading">
+              <div>
+                <span>{editingFlashcard ? "Editar" : "Novo"}</span>
+                <h2>{editingFlashcard ? "Editar flashcard" : "Novo flashcard"}</h2>
+              </div>
+              <button type="button" onClick={closeFlashcardModal} aria-label="Fechar modal">
+                <DashboardIcon name="close" />
+              </button>
+            </div>
+
+            <label>
+              Assunto
+              <select
+                value={formValues.subjectId}
+                onChange={(event) => updateFlashcardField("subjectId", event.target.value)}
+                required
+              >
+                <option value="">Escolha um assunto</option>
+                {subjects.map((subject) => (
+                  <option value={subject.id} key={subject.id}>
+                    {subject.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Dificuldade
+              <select
+                value={formValues.difficulty}
+                onChange={(event) => updateFlashcardField("difficulty", event.target.value as Difficulty)}
+                required
+              >
+                <option value="EASY">Facil</option>
+                <option value="MEDIUM">Media</option>
+                <option value="HARD">Dificil</option>
+              </select>
+            </label>
+
+            <label>
+              Pergunta
+              <textarea
+                value={formValues.question}
+                onChange={(event) => updateFlashcardField("question", event.target.value)}
+                placeholder="Ex: O que e polimorfismo?"
+                maxLength={1000}
+                required
+                autoFocus
+              />
+            </label>
+
+            <label>
+              Resposta
+              <textarea
+                value={formValues.answer}
+                onChange={(event) => updateFlashcardField("answer", event.target.value)}
+                placeholder="Explique a resposta com clareza..."
+                maxLength={5000}
+                required
+              />
+            </label>
+
+            <div className="editor-actions">
+              <button type="button" className="ghost-button" onClick={closeFlashcardModal}>
+                Cancelar
+              </button>
+              <button type="submit" className="save-note-button" disabled={isSaving}>
+                <DashboardIcon name="check" />
+                {isSaving ? "Salvando..." : "Salvar"}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function NotesPage() {
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [selectedSubjectId, setSelectedSubjectId] = useState("all");
+  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [formValues, setFormValues] = useState<NoteFormValues>(emptyNoteForm);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const selectedNote = notes.find((note) => note.id === selectedNoteId) ?? null;
+  const fallbackSubjectId = selectedSubjectId === "all" ? subjects[0]?.id ?? "" : selectedSubjectId;
+  const filteredSubjectName = selectedSubjectId === "all" ? "Todos os assuntos" : getSubjectName(subjects, selectedSubjectId);
+
+  const loadNotes = useCallback(async () => {
+    setIsLoading(true);
+
+    try {
+      const [subjectsData, notesData] = await Promise.all([
+        apiRequest<Subject[]>("/subjects"),
+        apiRequest<Note[]>(selectedSubjectId === "all" ? "/notes" : `/subjects/${selectedSubjectId}/notes`)
+      ]);
+
+      setSubjects(subjectsData);
+      setNotes(notesData);
+      setSelectedNoteId((current) =>
+        current && notesData.some((note) => note.id === current) ? current : notesData[0]?.id ?? null
+      );
+
+      setFormValues((current) => {
+        if (current.subjectId || editingNoteId) {
+          return current;
+        }
+
+        return buildNoteForm(null, selectedSubjectId === "all" ? subjectsData[0]?.id ?? "" : selectedSubjectId);
+      });
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Nao foi possivel carregar suas anotacoes."
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [editingNoteId, selectedSubjectId]);
+
+  useEffect(() => {
+    loadNotes();
+  }, [loadNotes]);
+
+  function updateNoteField(field: keyof NoteFormValues, value: string) {
+    setFormValues((current) => ({ ...current, [field]: value }));
+    setFeedback(null);
+  }
+
+  function startNewNote() {
+    setEditingNoteId(null);
+    setFormValues(buildNoteForm(null, fallbackSubjectId));
+    setFeedback(null);
+  }
+
+  function startEditing(note: Note) {
+    setEditingNoteId(note.id);
+    setSelectedNoteId(note.id);
+    setFormValues(buildNoteForm(note, fallbackSubjectId));
+    setFeedback(null);
+  }
+
+  async function handleNoteSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!formValues.subjectId) {
+      setFeedback({ type: "error", message: "Escolha um assunto antes de salvar a anotacao." });
+      return;
+    }
+
+    setIsSaving(true);
+    setFeedback(null);
+
+    const payload = {
+      subjectId: formValues.subjectId,
+      title: formValues.title.trim(),
+      content: formValues.content.trim()
+    };
+
+    try {
+      const savedNote = await apiRequest<Note>(editingNoteId ? `/notes/${editingNoteId}` : "/notes", {
+        method: editingNoteId ? "PUT" : "POST",
+        body: JSON.stringify(payload)
+      });
+
+      setSelectedNoteId(savedNote.id);
+      setEditingNoteId(null);
+      setFormValues(buildNoteForm(null, savedNote.subjectId));
+      setFeedback({
+        type: "success",
+        message: editingNoteId ? "Anotacao atualizada." : "Anotacao criada."
+      });
+
+      if (selectedSubjectId !== "all" && selectedSubjectId !== savedNote.subjectId) {
+        setSelectedSubjectId(savedNote.subjectId);
+      } else {
+        await loadNotes();
+      }
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Nao foi possivel salvar a anotacao."
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleDeleteNote() {
+    if (!selectedNote) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setFeedback(null);
+
+    try {
+      await apiRequest<null>(`/notes/${selectedNote.id}`, { method: "DELETE" });
+      const remainingNotes = notes.filter((note) => note.id !== selectedNote.id);
+
+      setNotes(remainingNotes);
+      setSelectedNoteId(remainingNotes[0]?.id ?? null);
+      if (editingNoteId === selectedNote.id) {
+        setEditingNoteId(null);
+        setFormValues(buildNoteForm(null, fallbackSubjectId));
+      }
+      setFeedback({ type: "success", message: "Anotacao excluida." });
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Nao foi possivel excluir a anotacao."
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  return (
+    <div className="notes-page">
+      <section className="notes-toolbar" aria-label="Controles de anotacoes">
+        <div>
+          <span>{notes.length} anotacoes</span>
+          <strong>{filteredSubjectName}</strong>
+        </div>
+
+        <label>
+          <span className="sr-only">Filtrar por assunto</span>
+          <select
+            value={selectedSubjectId}
+            onChange={(event) => {
+              setSelectedSubjectId(event.target.value);
+              setEditingNoteId(null);
+              setFormValues(emptyNoteForm);
+            }}
+          >
+            <option value="all">Todos os assuntos</option>
+            {subjects.map((subject) => (
+              <option value={subject.id} key={subject.id}>
+                {subject.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <button type="button" onClick={startNewNote} disabled={subjects.length === 0}>
+          <DashboardIcon name="plus" />
+          Nova note
+        </button>
+      </section>
+
+      {feedback ? (
+        <div className={`feedback ${feedback.type}`} role="status">
+          {feedback.message}
+        </div>
+      ) : null}
+
+      <section className="notes-grid">
+        <aside className="notes-list-panel" aria-label="Lista de anotacoes">
+          {isLoading ? (
+            <div className="empty-state">Carregando anotacoes...</div>
+          ) : notes.length === 0 ? (
+            <div className="empty-state">
+              <DashboardIcon name="note" />
+              <strong>Nenhuma anotacao ainda</strong>
+              <p>Escolha um assunto e crie sua primeira note.</p>
+            </div>
+          ) : (
+            <div className="notes-list">
+              {notes.map((note) => (
+                <button
+                  className={selectedNoteId === note.id ? "active" : ""}
+                  type="button"
+                  key={note.id}
+                  onClick={() => setSelectedNoteId(note.id)}
+                >
+                  <span>{getSubjectName(subjects, note.subjectId)}</span>
+                  <strong>{note.title}</strong>
+                  <p>{getNotePreview(note.content)}</p>
+                  <time>{formatDate(note.updatedAt)}</time>
+                </button>
+              ))}
+            </div>
+          )}
+        </aside>
+
+        <article className="note-detail-panel">
+          {selectedNote ? (
+            <>
+              <div className="note-detail-heading">
+                <div>
+                  <span>{getSubjectName(subjects, selectedNote.subjectId)}</span>
+                  <h2>{selectedNote.title}</h2>
+                  <time>Atualizada em {formatDate(selectedNote.updatedAt)}</time>
+                </div>
+                <div className="note-actions">
+                  <button type="button" onClick={() => startEditing(selectedNote)} aria-label="Editar note">
+                    <DashboardIcon name="edit" />
+                  </button>
+                  <button type="button" onClick={handleDeleteNote} disabled={isDeleting} aria-label="Excluir note">
+                    <DashboardIcon name="trash" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="note-content">{selectedNote.content}</div>
+            </>
+          ) : (
+            <div className="empty-state detail-empty">
+              <DashboardIcon name="note" />
+              <strong>Selecione uma note</strong>
+              <p>O detalhe da anotacao aparece aqui.</p>
+            </div>
+          )}
+        </article>
+
+        <form className="note-editor-panel" onSubmit={handleNoteSubmit}>
+          <div className="panel-heading compact">
+            <h2>
+              <DashboardIcon name={editingNoteId ? "edit" : "plus"} />
+              {editingNoteId ? "Editar note" : "Nova note"}
+            </h2>
+          </div>
+
+          <label>
+            Assunto
+            <select
+              value={formValues.subjectId}
+              onChange={(event) => updateNoteField("subjectId", event.target.value)}
+              disabled={subjects.length === 0}
+              required
+            >
+              <option value="">Escolha um assunto</option>
+              {subjects.map((subject) => (
+                <option value={subject.id} key={subject.id}>
+                  {subject.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Titulo
+            <input
+              type="text"
+              value={formValues.title}
+              onChange={(event) => updateNoteField("title", event.target.value)}
+              maxLength={160}
+              placeholder="Ex: Ciclo de vida das estrelas"
+              required
+            />
+          </label>
+
+          <label>
+            Conteudo
+            <textarea
+              value={formValues.content}
+              onChange={(event) => updateNoteField("content", event.target.value)}
+              maxLength={10000}
+              placeholder="Escreva sua anotacao..."
+              required
+            />
+          </label>
+
+          <div className="editor-actions">
+            {editingNoteId ? (
+              <button type="button" className="ghost-button" onClick={startNewNote}>
+                Cancelar
+              </button>
+            ) : null}
+            <button type="submit" className="save-note-button" disabled={isSaving || subjects.length === 0}>
+              <DashboardIcon name="check" />
+              {isSaving ? "Salvando..." : "Salvar"}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
+}
+
+function PlaceholderSection({ section }: { section: HomeSection }) {
+  return (
+    <section className="placeholder-section">
+      <DashboardIcon name={navItems.find((item) => item.section === section)?.icon ?? "dashboard"} />
+      <h2>{placeholderTitles[section]}</h2>
+      <p>{placeholderCopy[section]}</p>
+    </section>
   );
 }
 
@@ -483,6 +1762,126 @@ async function readResponse(response: Response) {
   } catch {
     return text;
   }
+}
+
+function getAuthTitle(mode: AuthMode) {
+  if (mode === "register") {
+    return "Criar conta";
+  }
+
+  if (mode === "forgot") {
+    return "Recuperar senha";
+  }
+
+  if (mode === "reset") {
+    return "Nova senha";
+  }
+
+  return "Entrar";
+}
+
+function getAuthSubtitle(mode: AuthMode) {
+  if (mode === "register") {
+    return "Comece sua jornada de estudos em poucos segundos.";
+  }
+
+  if (mode === "forgot") {
+    return "Informe seu email para receber um link de recuperacao.";
+  }
+
+  if (mode === "reset") {
+    return "Crie uma senha nova para voltar ao seu painel.";
+  }
+
+  return "Acesse seu painel e continue de onde parou.";
+}
+
+function getAuthRequest(mode: AuthMode, values: typeof initialValues, resetToken: string) {
+  if (mode === "register") {
+    return {
+      endpoint: "/auth/register",
+      payload: {
+        name: values.name.trim(),
+        email: values.email.trim(),
+        password: values.password
+      }
+    };
+  }
+
+  if (mode === "forgot") {
+    return {
+      endpoint: "/auth/forgot-password",
+      payload: {
+        email: values.email.trim()
+      }
+    };
+  }
+
+  if (mode === "reset") {
+    return {
+      endpoint: "/auth/reset-password",
+      payload: {
+        token: resetToken,
+        password: values.password
+      }
+    };
+  }
+
+  return {
+    endpoint: "/auth/login",
+    payload: {
+      email: values.email.trim(),
+      password: values.password
+    }
+  };
+}
+
+function getSubmitLabel(mode: AuthMode) {
+  if (mode === "register") {
+    return "Criar minha conta";
+  }
+
+  if (mode === "forgot") {
+    return "Enviar email";
+  }
+
+  if (mode === "reset") {
+    return "Atualizar senha";
+  }
+
+  return "Fazer login";
+}
+
+function getSectionSubtitle(section: HomeSection) {
+  if (section === "subjects") {
+    return "Crie e mantenha os assuntos que organizam suas anotacoes.";
+  }
+
+  if (section === "notes") {
+    return "Crie, filtre e revise suas anotacoes por assunto.";
+  }
+
+  if (section === "flashcards") {
+    return "Crie cards de pergunta e resposta por assunto.";
+  }
+
+  return placeholderCopy[section] || "Pronto para mais uma sessao de estudos?";
+}
+
+function getResponseMessage(data: unknown, fallback: string) {
+  if (typeof data === "object" && data !== null && "message" in data) {
+    return String((data as { message: unknown }).message);
+  }
+
+  return fallback;
+}
+
+function clearResetTokenFromUrl() {
+  if (!window.location.search.includes("resetToken=")) {
+    return;
+  }
+
+  window.history.replaceState({}, document.title, window.location.pathname);
 }
 
 function getErrorMessage(status: number, data: unknown) {
@@ -601,6 +2000,38 @@ function DashboardIcon({ name }: { name: string }) {
       <>
         <path d="M12 2l1.7 6.3L20 10l-6.3 1.7L12 18l-1.7-6.3L4 10l6.3-1.7Z" />
         <path d="M19 16l.7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7Z" />
+      </>
+    ),
+    plus: (
+      <>
+        <path d="M12 5v14" />
+        <path d="M5 12h14" />
+      </>
+    ),
+    edit: (
+      <>
+        <path d="M4 20h4l10.5-10.5a2.8 2.8 0 0 0-4-4L4 16v4Z" />
+        <path d="m13.5 6.5 4 4" />
+      </>
+    ),
+    trash: (
+      <>
+        <path d="M5 7h14" />
+        <path d="M9 7V4h6v3" />
+        <path d="M8 10v9" />
+        <path d="M16 10v9" />
+        <path d="M6 7l1 14h10l1-14" />
+      </>
+    ),
+    check: (
+      <>
+        <path d="m5 12 4 4L19 6" />
+      </>
+    ),
+    close: (
+      <>
+        <path d="M6 6l12 12" />
+        <path d="M18 6 6 18" />
       </>
     )
   };
