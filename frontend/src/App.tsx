@@ -1,7 +1,7 @@
-import { FormEvent, ReactNode, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import spaceImage from "./assets/space-login.png";
 
-type AuthMode = "login" | "register";
+type AuthMode = "login" | "register" | "forgot" | "reset";
 type AppView = "auth" | "home";
 
 type Feedback = {
@@ -17,11 +17,35 @@ type LoginResponse = {
   tokenType: string;
 };
 
+type GoogleCredentialResponse = {
+  credential?: string;
+};
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: {
+            client_id: string;
+            callback: (response: GoogleCredentialResponse) => void;
+          }) => void;
+          renderButton: (parent: HTMLElement, options: Record<string, string | number>) => void;
+          cancel: () => void;
+        };
+      };
+    };
+  }
+}
+
 const initialValues = {
   name: "",
   email: "",
   password: ""
 };
+
+const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+const initialResetToken = new URLSearchParams(window.location.search).get("resetToken") ?? "";
 
 const overviewCards = [
   { label: "Subjects", value: "12", detail: "assuntos criados", icon: "book" },
@@ -49,20 +73,25 @@ const navItems = [
 ];
 
 function App() {
-  const [mode, setMode] = useState<AuthMode>("login");
+  const [mode, setMode] = useState<AuthMode>(() => (initialResetToken ? "reset" : "login"));
   const [currentView, setCurrentView] = useState<AppView>(() =>
     localStorage.getItem("studyplatform_token") ? "home" : "auth"
   );
   const [values, setValues] = useState(initialValues);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
   const [userName, setUserName] = useState<string | null>(() => getStoredUserName());
+  const [resetToken, setResetToken] = useState(initialResetToken);
+  const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
   const isRegister = mode === "register";
-  const title = isRegister ? "Criar conta" : "Entrar";
-  const subtitle = isRegister
-    ? "Comece sua jornada de estudos em poucos segundos."
-    : "Acesse seu painel e continue de onde parou.";
+  const isForgotPassword = mode === "forgot";
+  const isResetPassword = mode === "reset";
+  const showPassword = !isForgotPassword;
+  const showEmail = !isResetPassword;
+  const title = getAuthTitle(mode);
+  const subtitle = getAuthSubtitle(mode);
 
   const passwordHint = useMemo(() => {
     if (values.password.length === 0) {
@@ -86,24 +115,100 @@ function App() {
     setValues(initialValues);
     setFeedback(null);
     setUserName(null);
+    if (nextMode !== "reset") {
+      setResetToken("");
+      clearResetTokenFromUrl();
+    }
   }
+
+  const handleGoogleCredential = useCallback(async (response: GoogleCredentialResponse) => {
+    if (!response.credential) {
+      setFeedback({ type: "error", message: "Nao foi possivel entrar com Google." });
+      return;
+    }
+
+    setIsGoogleSubmitting(true);
+    setFeedback(null);
+
+    try {
+      const result = await fetch("/auth/google", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ idToken: response.credential })
+      });
+
+      const data = await readResponse(result);
+
+      if (!result.ok) {
+        throw new Error(getErrorMessage(result.status, data));
+      }
+
+      completeLogin(data as LoginResponse);
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Nao foi possivel entrar com Google."
+      });
+    } finally {
+      setIsGoogleSubmitting(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (mode !== "login" || !googleClientId || !googleButtonRef.current) {
+      return;
+    }
+
+    let cancelled = false;
+    const clientId = googleClientId;
+
+    function renderGoogleButton() {
+      if (cancelled || !window.google || !googleButtonRef.current) {
+        return;
+      }
+
+      googleButtonRef.current.innerHTML = "";
+      window.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: handleGoogleCredential
+      });
+      window.google.accounts.id.renderButton(googleButtonRef.current, {
+        theme: "outline",
+        size: "large",
+        text: "continue_with",
+        shape: "rectangular",
+        width: 360
+      });
+    }
+
+    if (window.google) {
+      renderGoogleButton();
+    } else {
+      const script = document.createElement("script");
+      script.src = "https://accounts.google.com/gsi/client";
+      script.async = true;
+      script.defer = true;
+      script.onload = renderGoogleButton;
+      document.head.appendChild(script);
+    }
+
+    return () => {
+      cancelled = true;
+      window.google?.accounts.id.cancel();
+    };
+  }, [handleGoogleCredential, mode]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
     setFeedback(null);
 
-    const endpoint = isRegister ? "/auth/register" : "/auth/login";
-    const payload = isRegister
-      ? {
-          name: values.name.trim(),
-          email: values.email.trim(),
-          password: values.password
-        }
-      : {
-          email: values.email.trim(),
-          password: values.password
-        };
+    const { endpoint, payload } = getAuthRequest(mode, values, resetToken);
 
     try {
       const response = await fetch(endpoint, {
@@ -130,12 +235,28 @@ function App() {
         return;
       }
 
+      if (isForgotPassword) {
+        setFeedback({
+          type: "success",
+          message: getResponseMessage(data, "Se o email existir, enviaremos um link de recuperacao.")
+        });
+        return;
+      }
+
+      if (isResetPassword) {
+        setMode("login");
+        setResetToken("");
+        setValues(initialValues);
+        clearResetTokenFromUrl();
+        setFeedback({
+          type: "success",
+          message: getResponseMessage(data, "Senha atualizada com sucesso. Entre com a nova senha.")
+        });
+        return;
+      }
+
       const loginData = data as LoginResponse;
-      localStorage.setItem("studyplatform_token", loginData.accessToken);
-      localStorage.setItem("studyplatform_user", JSON.stringify(loginData));
-      setUserName(loginData.name);
-      setCurrentView("home");
-      setValues(initialValues);
+      completeLogin(loginData);
     } catch (error) {
       setFeedback({
         type: "error",
@@ -158,6 +279,14 @@ function App() {
     setMode("login");
   }
 
+  function completeLogin(loginData: LoginResponse) {
+    localStorage.setItem("studyplatform_token", loginData.accessToken);
+    localStorage.setItem("studyplatform_user", JSON.stringify(loginData));
+    setUserName(loginData.name);
+    setCurrentView("home");
+    setValues(initialValues);
+  }
+
   if (currentView === "home") {
     return <HomePage userName={userName ?? "Paulo"} onLogout={handleLogout} />;
   }
@@ -177,22 +306,28 @@ function App() {
 
         <div className="form-panel">
           <div className="form-card">
-            <div className="mode-toggle" aria-label="Escolher fluxo">
-              <button
-                type="button"
-                className={mode === "login" ? "active" : ""}
-                onClick={() => changeMode("login")}
-              >
-                Entrar
+            {mode === "login" || mode === "register" ? (
+              <div className="mode-toggle" aria-label="Escolher fluxo">
+                <button
+                  type="button"
+                  className={mode === "login" ? "active" : ""}
+                  onClick={() => changeMode("login")}
+                >
+                  Entrar
+                </button>
+                <button
+                  type="button"
+                  className={mode === "register" ? "active" : ""}
+                  onClick={() => changeMode("register")}
+                >
+                  Criar conta
+                </button>
+              </div>
+            ) : (
+              <button className="back-button" type="button" onClick={() => changeMode("login")}>
+                Voltar ao login
               </button>
-              <button
-                type="button"
-                className={mode === "register" ? "active" : ""}
-                onClick={() => changeMode("register")}
-              >
-                Criar conta
-              </button>
-            </div>
+            )}
 
             <div className="heading-group">
               <p className="eyebrow">Study dashboard</p>
@@ -226,40 +361,52 @@ function App() {
                 </label>
               ) : null}
 
-              <label>
-                Email
-                <span className="input-wrap">
-                  <MailIcon />
-                  <input
-                    type="email"
-                    autoComplete="email"
-                    value={values.email}
-                    onChange={(event) => updateField("email", event.target.value)}
-                    placeholder="voce@email.com"
-                    maxLength={180}
-                    required
-                  />
-                </span>
-              </label>
+              {showEmail ? (
+                <label>
+                  Email
+                  <span className="input-wrap">
+                    <MailIcon />
+                    <input
+                      type="email"
+                      autoComplete="email"
+                      value={values.email}
+                      onChange={(event) => updateField("email", event.target.value)}
+                      placeholder="voce@email.com"
+                      maxLength={180}
+                      required
+                    />
+                  </span>
+                </label>
+              ) : null}
 
-              <label>
-                Senha
-                <span className="input-wrap">
-                  <LockIcon />
-                  <input
-                    type="password"
-                    autoComplete={isRegister ? "new-password" : "current-password"}
-                    value={values.password}
-                    onChange={(event) => updateField("password", event.target.value)}
-                    placeholder="No minimo 8 caracteres"
-                    minLength={8}
-                    maxLength={72}
-                    required
-                  />
-                </span>
-              </label>
+              {showPassword ? (
+                <label>
+                  {isResetPassword ? "Nova senha" : "Senha"}
+                  <span className="input-wrap">
+                    <LockIcon />
+                    <input
+                      type="password"
+                      autoComplete={isRegister || isResetPassword ? "new-password" : "current-password"}
+                      value={values.password}
+                      onChange={(event) => updateField("password", event.target.value)}
+                      placeholder="No minimo 8 caracteres"
+                      minLength={8}
+                      maxLength={72}
+                      required
+                    />
+                  </span>
+                </label>
+              ) : null}
 
-              <p className="password-hint">{passwordHint}</p>
+              {showPassword ? <p className="password-hint">{passwordHint}</p> : null}
+
+              {mode === "login" ? (
+                <div className="forgot-row">
+                  <button type="button" onClick={() => changeMode("forgot")}>
+                    Esqueci minha senha
+                  </button>
+                </div>
+              ) : null}
 
               {feedback ? (
                 <div className={`feedback ${feedback.type}`} role="status">
@@ -270,21 +417,37 @@ function App() {
               <button className="submit-button" type="submit" disabled={isSubmitting}>
                 {isSubmitting
                   ? "Enviando..."
-                  : isRegister
-                    ? "Criar minha conta"
-                    : "Fazer login"}
+                  : getSubmitLabel(mode)}
               </button>
             </form>
 
-            <p className="switch-copy">
-              {isRegister ? "Ja tem uma conta?" : "Ainda nao tem conta?"}
-              <button
-                type="button"
-                onClick={() => changeMode(isRegister ? "login" : "register")}
-              >
-                {isRegister ? "Entrar" : "Criar conta"}
-              </button>
-            </p>
+            {mode === "login" ? (
+              <div className="google-section">
+                <div className="auth-divider">
+                  <span>ou</span>
+                </div>
+                {googleClientId ? (
+                  <>
+                    <div ref={googleButtonRef} className="google-button-slot" />
+                    {isGoogleSubmitting ? <p className="google-status">Entrando com Google...</p> : null}
+                  </>
+                ) : (
+                  <p className="google-status">Configure VITE_GOOGLE_CLIENT_ID para habilitar Google.</p>
+                )}
+              </div>
+            ) : null}
+
+            {mode === "login" || mode === "register" ? (
+              <p className="switch-copy">
+                {isRegister ? "Ja tem uma conta?" : "Ainda nao tem conta?"}
+                <button
+                  type="button"
+                  onClick={() => changeMode(isRegister ? "login" : "register")}
+                >
+                  {isRegister ? "Entrar" : "Criar conta"}
+                </button>
+              </p>
+            ) : null}
           </div>
         </div>
       </section>
@@ -483,6 +646,110 @@ async function readResponse(response: Response) {
   } catch {
     return text;
   }
+}
+
+function getAuthTitle(mode: AuthMode) {
+  if (mode === "register") {
+    return "Criar conta";
+  }
+
+  if (mode === "forgot") {
+    return "Recuperar senha";
+  }
+
+  if (mode === "reset") {
+    return "Nova senha";
+  }
+
+  return "Entrar";
+}
+
+function getAuthSubtitle(mode: AuthMode) {
+  if (mode === "register") {
+    return "Comece sua jornada de estudos em poucos segundos.";
+  }
+
+  if (mode === "forgot") {
+    return "Informe seu email para receber um link de recuperacao.";
+  }
+
+  if (mode === "reset") {
+    return "Crie uma senha nova para voltar ao seu painel.";
+  }
+
+  return "Acesse seu painel e continue de onde parou.";
+}
+
+function getAuthRequest(mode: AuthMode, values: typeof initialValues, resetToken: string) {
+  if (mode === "register") {
+    return {
+      endpoint: "/auth/register",
+      payload: {
+        name: values.name.trim(),
+        email: values.email.trim(),
+        password: values.password
+      }
+    };
+  }
+
+  if (mode === "forgot") {
+    return {
+      endpoint: "/auth/forgot-password",
+      payload: {
+        email: values.email.trim()
+      }
+    };
+  }
+
+  if (mode === "reset") {
+    return {
+      endpoint: "/auth/reset-password",
+      payload: {
+        token: resetToken,
+        password: values.password
+      }
+    };
+  }
+
+  return {
+    endpoint: "/auth/login",
+    payload: {
+      email: values.email.trim(),
+      password: values.password
+    }
+  };
+}
+
+function getSubmitLabel(mode: AuthMode) {
+  if (mode === "register") {
+    return "Criar minha conta";
+  }
+
+  if (mode === "forgot") {
+    return "Enviar email";
+  }
+
+  if (mode === "reset") {
+    return "Atualizar senha";
+  }
+
+  return "Fazer login";
+}
+
+function getResponseMessage(data: unknown, fallback: string) {
+  if (typeof data === "object" && data !== null && "message" in data) {
+    return String((data as { message: unknown }).message);
+  }
+
+  return fallback;
+}
+
+function clearResetTokenFromUrl() {
+  if (!window.location.search.includes("resetToken=")) {
+    return;
+  }
+
+  window.history.replaceState({}, document.title, window.location.pathname);
 }
 
 function getErrorMessage(status: number, data: unknown) {

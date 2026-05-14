@@ -1,9 +1,13 @@
 package com.paulogandolfi.studyplatform.auth.controller;
 
+import com.paulogandolfi.studyplatform.auth.dto.ForgotPasswordRequest;
+import com.paulogandolfi.studyplatform.auth.dto.GoogleLoginRequest;
 import com.paulogandolfi.studyplatform.auth.dto.LoginUserRequest;
 import com.paulogandolfi.studyplatform.auth.dto.LoginUserResponse;
+import com.paulogandolfi.studyplatform.auth.dto.MessageResponse;
 import com.paulogandolfi.studyplatform.auth.dto.RegisterUserRequest;
 import com.paulogandolfi.studyplatform.auth.dto.RegisterUserResponse;
+import com.paulogandolfi.studyplatform.auth.dto.ResetPasswordRequest;
 import com.paulogandolfi.studyplatform.auth.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -32,5 +36,20 @@ public class AuthController {
     @PostMapping("/login")
     public LoginUserResponse login(@Valid @RequestBody LoginUserRequest request) {
         return authService.login(request);
+    }
+
+    @PostMapping("/google")
+    public LoginUserResponse loginWithGoogle(@Valid @RequestBody GoogleLoginRequest request) {
+        return authService.loginWithGoogle(request.idToken());
+    }
+
+    @PostMapping("/forgot-password")
+    public MessageResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        return authService.requestPasswordReset(request.email());
+    }
+
+    @PostMapping("/reset-password")
+    public MessageResponse resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        return authService.resetPassword(request);
     }
 }

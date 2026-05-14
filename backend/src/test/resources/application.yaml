@@ -12,3 +12,8 @@ app:
   jwt:
     secret: studyplatform-test-secret-with-enough-length
     expiration: 1h
+  frontend-url: http://localhost:5173
+  google:
+    client-id:
+  mail:
+    from: no-reply@studyplatform.local

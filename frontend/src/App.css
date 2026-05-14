@@ -169,6 +169,16 @@ button {
   box-shadow: 0 12px 30px rgba(78, 115, 255, 0.28);
 }
 
+.back-button {
+  min-height: 42px;
+  margin-bottom: 28px;
+  border: 0;
+  padding: 0;
+  color: #87dcff;
+  background: transparent;
+  font-weight: 900;
+}
+
 .heading-group {
   margin-bottom: 28px;
 }
@@ -284,6 +294,21 @@ button {
   font-size: 0.82rem;
 }
 
+.forgot-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -8px;
+}
+
+.forgot-row button {
+  border: 0;
+  padding: 0;
+  color: #87dcff;
+  background: transparent;
+  font-size: 0.88rem;
+  font-weight: 900;
+}
+
 .feedback {
   padding: 12px 14px;
   border-radius: 14px;
@@ -326,6 +351,43 @@ button {
 .submit-button:disabled {
   cursor: wait;
   opacity: 0.68;
+}
+
+.google-section {
+  display: grid;
+  gap: 14px;
+  margin-top: 20px;
+  justify-items: center;
+}
+
+.auth-divider {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  height: 1px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.google-button-slot {
+  min-height: 44px;
+}
+
+.google-status {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.86rem;
+  text-align: center;
 }
 
 .switch-copy {
