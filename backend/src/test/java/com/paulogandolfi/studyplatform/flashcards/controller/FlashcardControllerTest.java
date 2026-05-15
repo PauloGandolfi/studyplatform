@@ -17,6 +17,8 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.LocalDate;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -78,6 +80,8 @@ class FlashcardControllerTest {
                 .andExpect(jsonPath("$.question").value("What is a stream?"))
                 .andExpect(jsonPath("$.answer").value("A pipeline of data operations."))
                 .andExpect(jsonPath("$.difficulty").value("MEDIUM"))
+                .andExpect(jsonPath("$.reviewInterval").value(1))
+                .andExpect(jsonPath("$.nextReviewDate").value(LocalDate.now().toString()))
                 .andExpect(jsonPath("$.createdAt").exists())
                 .andExpect(jsonPath("$.updatedAt").exists());
 
@@ -87,6 +91,92 @@ class FlashcardControllerTest {
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].subjectId").value(subject.getId().toString()))
                 .andExpect(jsonPath("$[0].question").value("What is a stream?"));
+    }
+
+    @Test
+    void listPendingReviewsOnlyReturnsDueFlashcardsForAuthenticatedUser() throws Exception {
+        User user = createUser("Review User", "review-user@example.com");
+        User otherUser = createUser("Other Review User", "other-review-user@example.com");
+        Subject subject = subjectRepository.save(new Subject(user, "Java"));
+        Subject otherUserSubject = subjectRepository.save(new Subject(otherUser, "Python"));
+        Flashcard overdueFlashcard = new Flashcard(subject, "Overdue?", "Yes", Difficulty.MEDIUM);
+        overdueFlashcard.setNextReviewDate(LocalDate.now().minusDays(1));
+        Flashcard todayFlashcard = new Flashcard(subject, "Today?", "Yes", Difficulty.EASY);
+        todayFlashcard.setNextReviewDate(LocalDate.now());
+        Flashcard futureFlashcard = new Flashcard(subject, "Future?", "No", Difficulty.HARD);
+        futureFlashcard.setNextReviewDate(LocalDate.now().plusDays(1));
+        Flashcard otherUserFlashcard = new Flashcard(otherUserSubject, "Other?", "No", Difficulty.MEDIUM);
+        otherUserFlashcard.setNextReviewDate(LocalDate.now().minusDays(1));
+
+        flashcardRepository.save(overdueFlashcard);
+        flashcardRepository.save(todayFlashcard);
+        flashcardRepository.save(futureFlashcard);
+        flashcardRepository.save(otherUserFlashcard);
+
+        mockMvc.perform(get("/flashcards/review")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(user)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].question").value("Overdue?"))
+                .andExpect(jsonPath("$[1].question").value("Today?"));
+    }
+
+    @Test
+    void reviewFlashcardUpdatesScheduleWhenCorrect() throws Exception {
+        User user = createUser("Correct Review User", "correct-review-user@example.com");
+        Subject subject = subjectRepository.save(new Subject(user, "Java"));
+        Flashcard flashcard = new Flashcard(subject, "Streams?", "Data operations", Difficulty.MEDIUM);
+        flashcard.setReviewInterval(3);
+        flashcard.setNextReviewDate(LocalDate.now().minusDays(1));
+        flashcard = flashcardRepository.save(flashcard);
+
+        mockMvc.perform(post("/flashcards/{id}/review", flashcard.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "correct": true,
+                                  "difficulty": "EASY"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.difficulty").value("EASY"))
+                .andExpect(jsonPath("$.reviewInterval").value(6))
+                .andExpect(jsonPath("$.nextReviewDate").value(LocalDate.now().plusDays(6).toString()));
+
+        Flashcard reviewedFlashcard = flashcardRepository.findById(flashcard.getId()).orElseThrow();
+        assertThat(reviewedFlashcard.getReviewInterval()).isEqualTo(6);
+        assertThat(reviewedFlashcard.getNextReviewDate()).isEqualTo(LocalDate.now().plusDays(6));
+        assertThat(reviewedFlashcard.getDifficulty()).isEqualTo(Difficulty.EASY);
+    }
+
+    @Test
+    void reviewFlashcardUpdatesScheduleWhenIncorrect() throws Exception {
+        User user = createUser("Incorrect Review User", "incorrect-review-user@example.com");
+        Subject subject = subjectRepository.save(new Subject(user, "Java"));
+        Flashcard flashcard = new Flashcard(subject, "Records?", "DTOs", Difficulty.EASY);
+        flashcard.setReviewInterval(8);
+        flashcard.setNextReviewDate(LocalDate.now().minusDays(2));
+        flashcard = flashcardRepository.save(flashcard);
+
+        mockMvc.perform(post("/flashcards/{id}/review", flashcard.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "correct": false,
+                                  "difficulty": "HARD"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.difficulty").value("HARD"))
+                .andExpect(jsonPath("$.reviewInterval").value(1))
+                .andExpect(jsonPath("$.nextReviewDate").value(LocalDate.now().plusDays(1).toString()));
+
+        Flashcard reviewedFlashcard = flashcardRepository.findById(flashcard.getId()).orElseThrow();
+        assertThat(reviewedFlashcard.getReviewInterval()).isEqualTo(1);
+        assertThat(reviewedFlashcard.getNextReviewDate()).isEqualTo(LocalDate.now().plusDays(1));
+        assertThat(reviewedFlashcard.getDifficulty()).isEqualTo(Difficulty.HARD);
     }
 
     @Test
