@@ -1,5 +1,6 @@
 import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import spaceImage from "./assets/space-login.png";
+import studyPlatformLogo from "./assets/study-platform-logo.png";
 
 type AuthMode = "login" | "register" | "forgot" | "reset";
 type AppView = "auth" | "home";
@@ -46,6 +47,8 @@ type Flashcard = {
   question: string;
   answer: string;
   difficulty: Difficulty;
+  reviewInterval: number;
+  nextReviewDate: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -242,6 +245,20 @@ function formatDate(value: string) {
   }
 
   return dateFormatter.format(date);
+}
+
+function formatReviewDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+
+  if (!year || !month || !day) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
+  }).format(new Date(year, month - 1, day));
 }
 
 function getNotePreview(content: string) {
@@ -692,14 +709,14 @@ function HomePage({
   return (
     <main className="home-page">
       <aside className="sidebar">
-        <div className="sidebar-brand">
-          <span className="brand-orb" />
-          <strong>
-            Study
-            <br />
-            Platform
-          </strong>
-        </div>
+        <button
+          className="sidebar-brand"
+          type="button"
+          onClick={() => onSectionChange("dashboard")}
+          aria-label="Ir para a pagina principal"
+        >
+          <img src={studyPlatformLogo} alt="Study Platform" />
+        </button>
 
         <nav className="side-nav" aria-label="Navegacao principal">
           {navItems.map((item) => (
@@ -760,6 +777,8 @@ function HomePage({
           <NotesPage />
         ) : currentSection === "flashcards" ? (
           <FlashcardsPage />
+        ) : currentSection === "reviews" ? (
+          <ReviewSessionPage />
         ) : currentSection === "dashboard" ? (
           <DashboardHome />
         ) : (
@@ -1432,6 +1451,196 @@ function FlashcardsPage() {
   );
 }
 
+function ReviewSessionPage() {
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [reviewCards, setReviewCards] = useState<Flashcard[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [reviewedCount, setReviewedCount] = useState(0);
+  const [isAnswerVisible, setIsAnswerVisible] = useState(false);
+  const [isFinished, setIsFinished] = useState(false);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const currentCard = reviewCards[currentIndex] ?? null;
+  const totalCards = reviewCards.length;
+  const progress = totalCards === 0 ? 0 : Math.round((reviewedCount / totalCards) * 100);
+
+  const loadReviewSession = useCallback(async () => {
+    setIsLoading(true);
+
+    try {
+      const [subjectsData, reviewCardsData] = await Promise.all([
+        apiRequest<Subject[]>("/subjects"),
+        apiRequest<Flashcard[]>("/flashcards/review")
+      ]);
+
+      setSubjects(subjectsData);
+      setReviewCards(reviewCardsData);
+      setCurrentIndex(0);
+      setReviewedCount(0);
+      setIsAnswerVisible(false);
+      setIsFinished(false);
+      setFeedback(null);
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Nao foi possivel carregar suas revisoes."
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadReviewSession();
+  }, [loadReviewSession]);
+
+  async function handleReviewAnswer(difficulty: Difficulty) {
+    if (!currentCard) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    setFeedback(null);
+
+    try {
+      await apiRequest<Flashcard>(`/flashcards/${currentCard.id}/review`, {
+        method: "POST",
+        body: JSON.stringify({
+          correct: difficulty !== "HARD",
+          difficulty
+        })
+      });
+
+      const nextReviewedCount = reviewedCount + 1;
+      setReviewedCount(nextReviewedCount);
+      setIsAnswerVisible(false);
+
+      if (currentIndex + 1 >= totalCards) {
+        setIsFinished(true);
+        return;
+      }
+
+      setCurrentIndex((index) => index + 1);
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Nao foi possivel registrar a revisao."
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <section className="review-session-page">
+        <div className="empty-state review-empty">Carregando revisoes...</div>
+      </section>
+    );
+  }
+
+  if (feedback) {
+    return (
+      <section className="review-session-page">
+        <div className={`feedback ${feedback.type}`} role="status">
+          {feedback.message}
+        </div>
+        <button className="review-secondary-button" type="button" onClick={loadReviewSession}>
+          Tentar novamente
+        </button>
+      </section>
+    );
+  }
+
+  if (totalCards === 0) {
+    return (
+      <section className="review-session-page">
+        <div className="empty-state review-empty">
+          <DashboardIcon name="calendar" />
+          <strong>Nada pendente por agora</strong>
+          <p>Quando seus flashcards chegarem na data de revisao, eles aparecem aqui.</p>
+        </div>
+      </section>
+    );
+  }
+
+  if (isFinished) {
+    return (
+      <section className="review-session-page">
+        <div className="review-finished">
+          <DashboardIcon name="check" />
+          <span>Sessao concluida</span>
+          <h2>{reviewedCount} revisoes finalizadas</h2>
+          <p>Os intervalos dos cards foram atualizados e a proxima revisao ja ficou agendada.</p>
+          <button type="button" onClick={loadReviewSession}>
+            Revisar novamente
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="review-session-page">
+      <div className="review-progress-panel" aria-label="Progresso da sessao">
+        <div>
+          <span>Card {currentIndex + 1} de {totalCards}</span>
+          <strong>{progress}% concluido</strong>
+        </div>
+        <div className="review-progress-track">
+          <span style={{ width: `${progress}%` }} />
+        </div>
+      </div>
+
+      {currentCard ? (
+        <article className="review-card">
+          <div className="review-card-meta">
+            <span>{getSubjectName(subjects, currentCard.subjectId)}</span>
+            <strong className={`difficulty-pill tone-${currentCard.difficulty.toLowerCase()}`}>
+              {getDifficultyLabel(currentCard.difficulty)}
+            </strong>
+          </div>
+
+          <div className="review-question">
+            <span>Pergunta</span>
+            <h2>{currentCard.question}</h2>
+          </div>
+
+          <div className={`review-answer ${isAnswerVisible ? "visible" : ""}`}>
+            <span>Resposta</span>
+            {isAnswerVisible ? <p>{currentCard.answer}</p> : <p>Revele a resposta quando estiver pronto.</p>}
+          </div>
+
+          <div className="review-card-footer">
+            <span>Proxima atualizacao usa intervalo atual de {currentCard.reviewInterval} dia(s).</span>
+            <time>Agendado para {formatReviewDate(currentCard.nextReviewDate)}</time>
+          </div>
+
+          {!isAnswerVisible ? (
+            <button className="review-reveal-button" type="button" onClick={() => setIsAnswerVisible(true)}>
+              Revelar resposta
+            </button>
+          ) : (
+            <div className="review-rating-actions">
+              <button type="button" onClick={() => handleReviewAnswer("EASY")} disabled={isSubmitting}>
+                Facil
+              </button>
+              <button type="button" onClick={() => handleReviewAnswer("MEDIUM")} disabled={isSubmitting}>
+                Medio
+              </button>
+              <button type="button" onClick={() => handleReviewAnswer("HARD")} disabled={isSubmitting}>
+                Dificil
+              </button>
+            </div>
+          )}
+        </article>
+      ) : null}
+    </section>
+  );
+}
+
 function NotesPage() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -1863,6 +2072,10 @@ function getSectionSubtitle(section: HomeSection) {
 
   if (section === "flashcards") {
     return "Crie cards de pergunta e resposta por assunto.";
+  }
+
+  if (section === "reviews") {
+    return "Revise os cards pendentes e mantenha a agenda em dia.";
   }
 
   return placeholderCopy[section] || "Pronto para mais uma sessao de estudos?";

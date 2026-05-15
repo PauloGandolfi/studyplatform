@@ -461,29 +461,28 @@ button {
 }
 
 .sidebar-brand {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-height: 54px;
+  display: block;
+  width: 128px;
+  min-height: 64px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  text-align: left;
 }
 
-.brand-orb {
-  width: 44px;
-  height: 44px;
-  flex: 0 0 auto;
-  border-radius: 999px;
-  background:
-    linear-gradient(145deg, transparent 48%, rgba(15, 14, 32, 0.55) 49%),
-    linear-gradient(135deg, #8759ff 0%, #35b7ff 100%);
-  box-shadow: 0 12px 32px rgba(95, 72, 255, 0.38);
+.sidebar-brand img {
+  display: block;
+  width: 100%;
+  height: 64px;
+  object-fit: contain;
+  object-position: left center;
+  filter: drop-shadow(0 12px 28px rgba(84, 153, 255, 0.28));
 }
 
-.sidebar-brand strong {
-  color: #fff;
-  font-size: 1.02rem;
-  line-height: 1.05;
-  font-weight: 950;
-  text-transform: uppercase;
+.sidebar-brand:focus-visible {
+  outline: 2px solid rgba(121, 216, 255, 0.92);
+  outline-offset: 6px;
+  border-radius: 12px;
 }
 
 .side-nav {
@@ -1006,7 +1005,8 @@ button {
 }
 
 .notes-page,
-.flashcards-page {
+.flashcards-page,
+.review-session-page {
   display: grid;
   gap: 18px;
 }
@@ -1405,6 +1405,221 @@ button {
   overflow-wrap: anywhere;
 }
 
+.review-session-page {
+  max-width: 980px;
+}
+
+.review-progress-panel {
+  min-height: 88px;
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.review-progress-panel div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.review-progress-panel span,
+.review-card-meta span,
+.review-question span,
+.review-answer span,
+.review-finished span {
+  color: #79d8ff;
+  font-size: 0.76rem;
+  font-weight: 950;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.review-progress-panel strong {
+  color: #fff;
+  font-size: 1rem;
+}
+
+.review-progress-track {
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.review-progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(135deg, #42c6f3, #8e55ff);
+  transition: width 180ms ease;
+}
+
+.review-card {
+  display: grid;
+  gap: 18px;
+  padding: clamp(20px, 3vw, 30px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 16% 0%, rgba(54, 178, 255, 0.14), transparent 14rem),
+    rgba(255, 255, 255, 0.045);
+  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.18);
+}
+
+.review-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.review-question {
+  min-height: 210px;
+  display: grid;
+  align-content: end;
+  gap: 18px;
+  padding: clamp(22px, 4vw, 36px);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.22), transparent 10rem),
+    linear-gradient(135deg, #225fa8, #24b5c5);
+}
+
+.review-question h2 {
+  max-width: 860px;
+  margin: 0;
+  color: #fff;
+  font-size: clamp(1.6rem, 4vw, 3.1rem);
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+
+.review-answer {
+  min-height: 138px;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.review-answer.visible {
+  background: rgba(59, 207, 120, 0.08);
+  border-color: rgba(117, 234, 167, 0.18);
+}
+
+.review-answer p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 1.05rem;
+  line-height: 1.58;
+  overflow-wrap: anywhere;
+}
+
+.review-card-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px 18px;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.86rem;
+}
+
+.review-reveal-button,
+.review-rating-actions button,
+.review-finished button,
+.review-secondary-button {
+  min-height: 48px;
+  border: 0;
+  border-radius: 14px;
+  padding: 0 20px;
+  color: #fff;
+  font-weight: 950;
+}
+
+.review-reveal-button,
+.review-finished button {
+  background: linear-gradient(135deg, #7842ff, #31aff3);
+  box-shadow: 0 14px 32px rgba(63, 113, 255, 0.28);
+}
+
+.review-rating-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.review-rating-actions button:first-child {
+  background: linear-gradient(135deg, #179c73, #55d88d);
+}
+
+.review-rating-actions button:nth-child(2) {
+  background: linear-gradient(135deg, #2676c8, #57c4ff);
+}
+
+.review-rating-actions button:last-child {
+  background: linear-gradient(135deg, #bd3d69, #ff7f9b);
+}
+
+.review-rating-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.review-finished {
+  min-height: 460px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 14px;
+  padding: 30px;
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(78, 205, 142, 0.16), transparent 16rem),
+    rgba(255, 255, 255, 0.045);
+  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.18);
+}
+
+.review-finished > svg {
+  width: 64px;
+  height: 64px;
+  padding: 14px;
+  border-radius: 18px;
+  color: #c8f7dc;
+  background: rgba(59, 207, 120, 0.16);
+}
+
+.review-finished h2 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(1.8rem, 4vw, 3rem);
+}
+
+.review-finished p {
+  max-width: 540px;
+  margin: 0 0 8px;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.55;
+}
+
+.review-secondary-button {
+  justify-self: start;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.review-empty {
+  min-height: 420px;
+}
+
 .notes-list-panel,
 .note-detail-panel,
 .note-editor-panel,
@@ -1691,12 +1906,12 @@ button {
   }
 
   .sidebar-brand {
-    min-height: 46px;
+    width: 118px;
+    min-height: 54px;
   }
 
-  .brand-orb {
-    width: 38px;
-    height: 38px;
+  .sidebar-brand img {
+    height: 54px;
   }
 
   .side-nav {
@@ -1774,6 +1989,10 @@ button {
   .note-detail-panel {
     min-height: auto;
   }
+
+  .review-session-page {
+    max-width: none;
+  }
 }
 
 @media (max-width: 520px) {
@@ -1850,8 +2069,13 @@ button {
     padding: 16px 14px;
   }
 
-  .sidebar-brand strong {
-    font-size: 0.92rem;
+  .sidebar-brand {
+    width: 108px;
+    min-height: 50px;
+  }
+
+  .sidebar-brand img {
+    height: 50px;
   }
 
   .side-nav button span {
@@ -1990,6 +2214,22 @@ button {
     justify-self: start;
     width: 58px;
     height: 58px;
+  }
+
+  .review-progress-panel div:first-child,
+  .review-card-meta,
+  .review-card-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .review-question {
+    min-height: 240px;
+    padding: 22px;
+  }
+
+  .review-rating-actions {
+    grid-template-columns: 1fr;
   }
 }
 

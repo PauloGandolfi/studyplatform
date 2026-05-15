@@ -2,6 +2,7 @@ package com.paulogandolfi.studyplatform.flashcards.service;
 
 import com.paulogandolfi.studyplatform.flashcards.dto.FlashcardRequest;
 import com.paulogandolfi.studyplatform.flashcards.dto.FlashcardResponse;
+import com.paulogandolfi.studyplatform.flashcards.dto.FlashcardReviewRequest;
 import com.paulogandolfi.studyplatform.flashcards.entity.Flashcard;
 import com.paulogandolfi.studyplatform.flashcards.repository.FlashcardRepository;
 import com.paulogandolfi.studyplatform.subjects.entity.Subject;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -56,6 +58,18 @@ public class FlashcardService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<FlashcardResponse> listPendingReviews(UUID userId) {
+        return flashcardRepository
+                .findAllBySubject_User_IdAndNextReviewDateLessThanEqualOrderByNextReviewDateAscCreatedAtAsc(
+                        userId,
+                        LocalDate.now()
+                )
+                .stream()
+                .map(FlashcardResponse::from)
+                .toList();
+    }
+
     @Transactional
     public FlashcardResponse update(UUID userId, UUID flashcardId, FlashcardRequest request) {
         Flashcard flashcard = findFlashcard(flashcardId, userId);
@@ -65,6 +79,25 @@ public class FlashcardService {
         flashcard.setQuestion(normalizeQuestion(request));
         flashcard.setAnswer(normalizeAnswer(request));
         flashcard.setDifficulty(request.difficulty());
+
+        return FlashcardResponse.from(flashcard);
+    }
+
+    @Transactional
+    public FlashcardResponse review(UUID userId, UUID flashcardId, FlashcardReviewRequest request) {
+        Flashcard flashcard = findFlashcard(flashcardId, userId);
+        LocalDate today = LocalDate.now();
+
+        flashcard.setDifficulty(request.difficulty());
+
+        if (request.correct()) {
+            int nextInterval = Math.max(1, flashcard.getReviewInterval()) * 2;
+            flashcard.setReviewInterval(nextInterval);
+            flashcard.setNextReviewDate(today.plusDays(nextInterval));
+        } else {
+            flashcard.setReviewInterval(1);
+            flashcard.setNextReviewDate(today.plusDays(1));
+        }
 
         return FlashcardResponse.from(flashcard);
     }

@@ -2,6 +2,7 @@ package com.paulogandolfi.studyplatform.flashcards.controller;
 
 import com.paulogandolfi.studyplatform.flashcards.dto.FlashcardRequest;
 import com.paulogandolfi.studyplatform.flashcards.dto.FlashcardResponse;
+import com.paulogandolfi.studyplatform.flashcards.dto.FlashcardReviewRequest;
 import com.paulogandolfi.studyplatform.flashcards.service.FlashcardService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -35,10 +36,24 @@ public class FlashcardController {
         return flashcardService.list(currentUserId(jwt));
     }
 
+    @GetMapping("/review")
+    public List<FlashcardResponse> listPendingReviews(@AuthenticationPrincipal Jwt jwt) {
+        return flashcardService.listPendingReviews(currentUserId(jwt));
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public FlashcardResponse create(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody FlashcardRequest request) {
         return flashcardService.create(currentUserId(jwt), request);
+    }
+
+    @PostMapping("/{id}/review")
+    public FlashcardResponse review(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID id,
+            @Valid @RequestBody FlashcardReviewRequest request
+    ) {
+        return flashcardService.review(currentUserId(jwt), id, request);
     }
 
     @PutMapping("/{id}")

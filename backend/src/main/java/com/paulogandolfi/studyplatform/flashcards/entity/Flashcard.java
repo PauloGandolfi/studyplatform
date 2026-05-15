@@ -15,6 +15,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -41,6 +42,12 @@ public class Flashcard {
     @Column(nullable = false, length = 20)
     private Difficulty difficulty;
 
+    @Column(name = "review_interval", nullable = false)
+    private Integer reviewInterval;
+
+    @Column(name = "next_review_date", nullable = false)
+    private LocalDate nextReviewDate;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -55,6 +62,8 @@ public class Flashcard {
         this.question = question;
         this.answer = answer;
         this.difficulty = difficulty;
+        this.reviewInterval = 1;
+        this.nextReviewDate = LocalDate.now();
     }
 
     @PrePersist
@@ -62,6 +71,12 @@ public class Flashcard {
         LocalDateTime now = LocalDateTime.now();
         createdAt = now;
         updatedAt = now;
+        if (reviewInterval == null) {
+            reviewInterval = 1;
+        }
+        if (nextReviewDate == null) {
+            nextReviewDate = LocalDate.now();
+        }
     }
 
     @PreUpdate
@@ -103,6 +118,22 @@ public class Flashcard {
 
     public void setDifficulty(Difficulty difficulty) {
         this.difficulty = difficulty;
+    }
+
+    public Integer getReviewInterval() {
+        return reviewInterval;
+    }
+
+    public void setReviewInterval(Integer reviewInterval) {
+        this.reviewInterval = reviewInterval;
+    }
+
+    public LocalDate getNextReviewDate() {
+        return nextReviewDate;
+    }
+
+    public void setNextReviewDate(LocalDate nextReviewDate) {
+        this.nextReviewDate = nextReviewDate;
     }
 
     public LocalDateTime getCreatedAt() {
