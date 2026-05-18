@@ -19,5 +19,7 @@ public interface FlashcardRepository extends JpaRepository<Flashcard, UUID> {
             LocalDate today
     );
 
+    long countBySubject_User_Id(UUID userId);
+
     Optional<Flashcard> findByIdAndSubject_User_Id(UUID id, UUID userId);
 }

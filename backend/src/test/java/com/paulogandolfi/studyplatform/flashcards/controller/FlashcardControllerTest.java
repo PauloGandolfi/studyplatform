@@ -4,6 +4,7 @@ import com.paulogandolfi.studyplatform.auth.service.JwtService;
 import com.paulogandolfi.studyplatform.flashcards.entity.Difficulty;
 import com.paulogandolfi.studyplatform.flashcards.entity.Flashcard;
 import com.paulogandolfi.studyplatform.flashcards.repository.FlashcardRepository;
+import com.paulogandolfi.studyplatform.sessions.repository.StudySessionRepository;
 import com.paulogandolfi.studyplatform.subjects.entity.Subject;
 import com.paulogandolfi.studyplatform.subjects.repository.SubjectRepository;
 import com.paulogandolfi.studyplatform.users.entity.User;
@@ -42,6 +43,9 @@ class FlashcardControllerTest {
 
     @Autowired
     private FlashcardRepository flashcardRepository;
+
+    @Autowired
+    private StudySessionRepository studySessionRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -148,6 +152,8 @@ class FlashcardControllerTest {
         assertThat(reviewedFlashcard.getReviewInterval()).isEqualTo(6);
         assertThat(reviewedFlashcard.getNextReviewDate()).isEqualTo(LocalDate.now().plusDays(6));
         assertThat(reviewedFlashcard.getDifficulty()).isEqualTo(Difficulty.EASY);
+        assertThat(studySessionRepository.sumCardsReviewedByUserIdAndSessionDate(user.getId(), LocalDate.now())).isEqualTo(1);
+        assertThat(studySessionRepository.sumCorrectAnswersByUserId(user.getId())).isEqualTo(1);
     }
 
     @Test
@@ -177,6 +183,8 @@ class FlashcardControllerTest {
         assertThat(reviewedFlashcard.getReviewInterval()).isEqualTo(1);
         assertThat(reviewedFlashcard.getNextReviewDate()).isEqualTo(LocalDate.now().plusDays(1));
         assertThat(reviewedFlashcard.getDifficulty()).isEqualTo(Difficulty.HARD);
+        assertThat(studySessionRepository.sumCardsReviewedByUserIdAndSessionDate(user.getId(), LocalDate.now())).isEqualTo(1);
+        assertThat(studySessionRepository.sumCorrectAnswersByUserId(user.getId())).isZero();
     }
 
     @Test

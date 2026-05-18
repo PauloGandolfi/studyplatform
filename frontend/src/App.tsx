@@ -1,10 +1,10 @@
-import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import spaceImage from "./assets/space-login.png";
 import studyPlatformLogo from "./assets/study-platform-logo.png";
 
 type AuthMode = "login" | "register" | "forgot" | "reset";
 type AppView = "auth" | "home";
-type HomeSection = "dashboard" | "subjects" | "notes" | "flashcards" | "reviews" | "stats" | "profile" | "settings";
+type HomeSection = "dashboard" | "tasks" | "subjects" | "notes" | "flashcards" | "reviews" | "stats" | "profile" | "settings";
 
 type Feedback = {
   type: "success" | "error";
@@ -40,6 +40,7 @@ type Note = {
 };
 
 type Difficulty = "EASY" | "MEDIUM" | "HARD";
+type TaskStatus = "TODO" | "DOING" | "DONE";
 
 type Flashcard = {
   id: string;
@@ -53,10 +54,55 @@ type Flashcard = {
   updatedAt: string;
 };
 
+type StudyTask = {
+  id: string;
+  userId: string;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  primaryTask: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type WeeklyReview = {
+  date: string;
+  label: string;
+  reviews: number;
+};
+
+type RecentActivity = {
+  title: string;
+  subject: string;
+  type: string;
+  sessionDate: string;
+  createdAt: string;
+};
+
+type DashboardMetrics = {
+  subjects: number;
+  notes: number;
+  flashcards: number;
+  reviewsToday: number;
+  accuracyRate: number;
+  streak: number;
+  dailyGoal: number;
+  dailyProgress: number;
+  weeklyReviews: WeeklyReview[];
+  recentActivities: RecentActivity[];
+};
+
 type NoteFormValues = {
   subjectId: string;
   title: string;
   content: string;
+};
+
+type TaskFormValues = {
+  title: string;
+  description: string;
+  status: TaskStatus;
+  primaryTask: boolean;
 };
 
 type FlashcardFormValues = {
@@ -96,26 +142,13 @@ const initialValues = {
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 const initialResetToken = new URLSearchParams(window.location.search).get("resetToken") ?? "";
 
-const overviewCards = [
-  { label: "Assuntos", value: "12", detail: "assuntos criados", icon: "book" },
-  { label: "Anotações", value: "84", detail: "anotacoes no total", icon: "note" },
-  { label: "Flashcards", value: "256", detail: "cartoes criados", icon: "cards" },
-  { label: "Revisoes", value: "18", detail: "para hoje", icon: "calendar" }
-];
-
-const recentActivities = [
-  { title: "Anotacao: Ciclo de Vida das Estrelas", subject: "Astronomia", time: "2h atras" },
-  { title: "Flashcard: Java - Collections", subject: "Java", time: "4h atras" },
-  { title: "Anotacao: Regras de Derivacao", subject: "Calculo", time: "1 dia atras" },
-  { title: "Flashcard: SQL - JOINs", subject: "Banco de Dados", time: "1 dia atras" }
-];
-
 const navItems: Array<{
   label: string;
   icon: string;
   section: HomeSection;
 }> = [
   { label: "Dashboard", icon: "dashboard", section: "dashboard" },
+  { label: "Missões", icon: "mission", section: "tasks" },
   { label: "Assuntos", icon: "book", section: "subjects" },
   { label: "Anotações", icon: "note", section: "notes" },
   { label: "Flashcards", icon: "cards", section: "flashcards" },
@@ -131,6 +164,13 @@ const emptyNoteForm: NoteFormValues = {
   content: ""
 };
 
+const emptyTaskForm: TaskFormValues = {
+  title: "",
+  description: "",
+  status: "TODO",
+  primaryTask: false
+};
+
 const emptyFlashcardForm: FlashcardFormValues = {
   subjectId: "",
   question: "",
@@ -144,6 +184,7 @@ const emptySubjectForm: SubjectFormValues = {
 
 const placeholderTitles: Record<HomeSection, string> = {
   dashboard: "Dashboard",
+  tasks: "Missões",
   subjects: "Assuntos",
   notes: "Anotações",
   flashcards: "Flashcards",
@@ -155,6 +196,7 @@ const placeholderTitles: Record<HomeSection, string> = {
 
 const placeholderCopy: Record<HomeSection, string> = {
   dashboard: "",
+  tasks: "",
   subjects: "",
   notes: "",
   flashcards: "Flashcards entram depois que suas anotacoes estiverem organizadas.",
@@ -237,6 +279,22 @@ function buildFlashcardForm(flashcard: Flashcard | null, fallbackSubjectId: stri
   };
 }
 
+function buildTaskForm(task: StudyTask | null, primaryTask = false): TaskFormValues {
+  if (!task) {
+    return {
+      ...emptyTaskForm,
+      primaryTask
+    };
+  }
+
+  return {
+    title: task.title,
+    description: task.description ?? "",
+    status: task.status,
+    primaryTask: task.primaryTask
+  };
+}
+
 function formatDate(value: string) {
   const date = new Date(value);
 
@@ -259,6 +317,65 @@ function formatReviewDate(value: string) {
     month: "short",
     year: "numeric"
   }).format(new Date(year, month - 1, day));
+}
+
+function formatActivityTime(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const diffMinutes = Math.max(0, Math.round((Date.now() - date.getTime()) / 60000));
+
+  if (diffMinutes < 1) {
+    return "agora";
+  }
+
+  if (diffMinutes < 60) {
+    return `${diffMinutes}min atras`;
+  }
+
+  const diffHours = Math.round(diffMinutes / 60);
+
+  if (diffHours < 24) {
+    return `${diffHours}h atras`;
+  }
+
+  const diffDays = Math.round(diffHours / 24);
+  return diffDays === 1 ? "1 dia atras" : `${diffDays} dias atras`;
+}
+
+function buildOverviewCards(metrics: DashboardMetrics) {
+  return [
+    { label: "Assuntos", value: String(metrics.subjects), detail: "assuntos criados", icon: "book" },
+    { label: "Anotacoes", value: String(metrics.notes), detail: "anotacoes no total", icon: "note" },
+    { label: "Flashcards", value: String(metrics.flashcards), detail: "cartoes criados", icon: "cards" },
+    { label: "Revisoes", value: String(metrics.reviewsToday), detail: "revisados hoje", icon: "calendar" }
+  ];
+}
+
+function buildWeeklyChart(weeklyReviews: WeeklyReview[]) {
+  const values = weeklyReviews.length > 0 ? weeklyReviews : buildEmptyWeek();
+  const maxReviews = Math.max(1, ...values.map((item) => item.reviews));
+  const xPositions = [42, 138, 236, 342, 458, 552, 610];
+  const points = values.map((item, index) => ({
+    ...item,
+    x: xPositions[index] ?? 42 + index * 92,
+    y: 226 - Math.round((item.reviews / maxReviews) * 188)
+  }));
+  const linePath = points.map((point, index) => `${index === 0 ? "M" : "L"}${point.x} ${point.y}`).join(" ");
+  const areaPath = `${linePath} L${points[points.length - 1].x} 226 L${points[0].x} 226Z`;
+
+  return { points, linePath, areaPath };
+}
+
+function buildEmptyWeek(): WeeklyReview[] {
+  return ["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"].map((label, index) => ({
+    date: String(index),
+    label,
+    reviews: 0
+  }));
 }
 
 function getNotePreview(content: string) {
@@ -291,6 +408,26 @@ function getDifficultyLabel(difficulty: Difficulty) {
   }
 
   return "Media";
+}
+
+function getTaskStatusLabel(status: TaskStatus) {
+  if (status === "TODO") {
+    return "TODO";
+  }
+
+  if (status === "DOING") {
+    return "DOING";
+  }
+
+  return "DONE";
+}
+
+function getTaskProgress(tasks: StudyTask[]) {
+  if (tasks.length === 0) {
+    return 0;
+  }
+
+  return Math.round((tasks.filter((task) => task.status === "DONE").length / tasks.length) * 100);
 }
 
 function getSubjectName(subjects: Subject[], subjectId: string) {
@@ -771,7 +908,9 @@ function HomePage({
           </div>
         </header>
 
-        {currentSection === "subjects" ? (
+        {currentSection === "tasks" ? (
+          <TasksPage />
+        ) : currentSection === "subjects" ? (
           <SubjectsPage />
         ) : currentSection === "notes" ? (
           <NotesPage />
@@ -790,6 +929,35 @@ function HomePage({
 }
 
 function DashboardHome() {
+  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadDashboard = useCallback(async () => {
+    setIsLoading(true);
+    setFeedback(null);
+
+    try {
+      const dashboardMetrics = await apiRequest<DashboardMetrics>("/metrics/dashboard");
+      setMetrics(dashboardMetrics);
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Nao foi possivel carregar o dashboard."
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadDashboard();
+  }, [loadDashboard]);
+
+  const overviewCards = metrics ? buildOverviewCards(metrics) : [];
+  const weeklyChart = buildWeeklyChart(metrics?.weeklyReviews ?? []);
+  const dailyProgress = metrics?.dailyProgress ?? 0;
+
   return (
     <>
         <section className="hero-dashboard">
@@ -801,7 +969,11 @@ function DashboardHome() {
               Pequenos passos,
               <span> grandes conquistas.</span>
             </h2>
-            <p>Mantenha o foco e veja os resultados acontecerem.</p>
+            <p>
+              {metrics
+                ? `${metrics.streak} dia(s) de sequencia e ${metrics.reviewsToday} revisao(oes) hoje.`
+                : "Mantenha o foco e veja os resultados acontecerem."}
+            </p>
             <button type="button">
               <DashboardIcon name="spark" />
               Comecar a estudar
@@ -809,8 +981,21 @@ function DashboardHome() {
           </div>
         </section>
 
+        {feedback ? (
+          <div className={`feedback ${feedback.type}`} role="status">
+            {feedback.message}
+            <button type="button" onClick={loadDashboard}>
+              Tentar novamente
+            </button>
+          </div>
+        ) : null}
+
         <section className="overview-grid" aria-label="Resumo dos estudos">
-          {overviewCards.map((card) => (
+          {isLoading ? (
+            <div className="empty-state dashboard-empty">Carregando metricas...</div>
+          ) : null}
+
+          {!isLoading && overviewCards.map((card) => (
             <article className="metric-card" key={card.label}>
               <div className="metric-icon">
                 <DashboardIcon name={card.icon} />
@@ -827,6 +1012,7 @@ function DashboardHome() {
           ))}
         </section>
 
+        {metrics ? (
         <section className="dashboard-panels">
           <article className="activity-panel">
             <div className="panel-heading">
@@ -838,16 +1024,20 @@ function DashboardHome() {
             </div>
 
             <div className="activity-list">
-              {recentActivities.map((activity, index) => (
-                <div className="activity-item" key={activity.title}>
+              {metrics.recentActivities.length === 0 ? (
+                <div className="activity-empty">Suas revisoes vao aparecer aqui depois da primeira sessao.</div>
+              ) : null}
+
+              {metrics.recentActivities.map((activity, index) => (
+                <div className="activity-item" key={`${activity.createdAt}-${index}`}>
                   <div className={`activity-icon tone-${index % 3}`}>
-                    <DashboardIcon name={index % 2 === 0 ? "note" : "cards"} />
+                    <DashboardIcon name={activity.type === "review" ? "calendar" : "cards"} />
                   </div>
                   <div>
                     <strong>{activity.title}</strong>
                     <span>{activity.subject}</span>
                   </div>
-                  <time>{activity.time}</time>
+                  <time>{formatActivityTime(activity.createdAt)}</time>
                 </div>
               ))}
             </div>
@@ -878,21 +1068,21 @@ function DashboardHome() {
                 <path className="grid-line" d="M42 88H610" />
                 <path className="grid-line" d="M42 142H610" />
                 <path className="grid-line" d="M42 196H610" />
-                <path className="area-path" d="M42 150 C82 118 112 140 138 128 C180 108 194 62 236 80 C284 98 304 88 342 96 C394 108 416 146 458 132 C500 116 508 80 552 62 C578 50 592 44 610 38 L610 226 L42 226Z" />
-                <path className="line-path" d="M42 150 C82 118 112 140 138 128 C180 108 194 62 236 80 C284 98 304 88 342 96 C394 108 416 146 458 132 C500 116 508 80 552 62 C578 50 592 44 610 38" />
-                {[42, 138, 236, 342, 458, 552, 610].map((x, index) => (
+                <path className="area-path" d={weeklyChart.areaPath} />
+                <path className="line-path" d={weeklyChart.linePath} />
+                {weeklyChart.points.map((point) => (
                   <circle
                     className="chart-dot"
-                    cx={x}
-                    cy={[150, 128, 80, 96, 132, 62, 38][index]}
+                    cx={point.x}
+                    cy={point.y}
                     r="5"
-                    key={x}
+                    key={point.date}
                   />
                 ))}
               </svg>
               <div className="chart-labels">
-                {["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"].map((day) => (
-                  <span key={day}>{day}</span>
+                {weeklyChart.points.map((day) => (
+                  <span key={day.date}>{day.label}</span>
                 ))}
               </div>
             </div>
@@ -900,14 +1090,366 @@ function DashboardHome() {
             <div className="progress-summary">
               <DashboardIcon name="spark" />
               <div>
-                <strong>Otimo progresso!</strong>
-                <p>Voce esta acima da media semanal.</p>
+                <strong>{metrics.reviewsToday} de {metrics.dailyGoal} revisoes hoje</strong>
+                <p>{metrics.accuracyRate}% de acerto e {metrics.streak} dia(s) de streak.</p>
               </div>
-              <span className="progress-ring">75%</span>
+              <span
+                className="progress-ring"
+                style={{ "--progress": `${dailyProgress}%` } as CSSProperties}
+              >
+                {dailyProgress}%
+              </span>
             </div>
           </article>
         </section>
+        ) : null}
     </>
+  );
+}
+
+function TasksPage() {
+  const [tasks, setTasks] = useState<StudyTask[]>([]);
+  const [editingTask, setEditingTask] = useState<StudyTask | null>(null);
+  const [formValues, setFormValues] = useState<TaskFormValues>(emptyTaskForm);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
+  const [markingDoneTaskId, setMarkingDoneTaskId] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const primaryTask = tasks.find((task) => task.primaryTask) ?? null;
+  const secondaryTasks = tasks.filter((task) => !task.primaryTask);
+  const progress = getTaskProgress(tasks);
+  const todoCount = tasks.filter((task) => task.status === "TODO").length;
+  const doingCount = tasks.filter((task) => task.status === "DOING").length;
+  const doneCount = tasks.filter((task) => task.status === "DONE").length;
+
+  const loadTasks = useCallback(async () => {
+    setIsLoading(true);
+
+    try {
+      const tasksData = await apiRequest<StudyTask[]>("/tasks");
+      setTasks(tasksData);
+      setFeedback(null);
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Nao foi possivel carregar suas missoes."
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadTasks();
+  }, [loadTasks]);
+
+  function openCreateModal(primaryTask = false) {
+    setEditingTask(null);
+    setFormValues(buildTaskForm(null, primaryTask));
+    setFeedback(null);
+    setIsModalOpen(true);
+  }
+
+  function openEditModal(task: StudyTask) {
+    setEditingTask(task);
+    setFormValues(buildTaskForm(task));
+    setFeedback(null);
+    setIsModalOpen(true);
+  }
+
+  function closeTaskModal() {
+    if (isSaving) {
+      return;
+    }
+
+    setIsModalOpen(false);
+    setEditingTask(null);
+    setFormValues(emptyTaskForm);
+  }
+
+  function updateTaskField<K extends keyof TaskFormValues>(field: K, value: TaskFormValues[K]) {
+    setFormValues((current) => ({ ...current, [field]: value }));
+    setFeedback(null);
+  }
+
+  async function handleTaskSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSaving(true);
+    setFeedback(null);
+
+    const payload = {
+      title: formValues.title.trim(),
+      description: formValues.description.trim(),
+      status: formValues.status,
+      primaryTask: formValues.primaryTask
+    };
+
+    try {
+      const savedTask = await apiRequest<StudyTask>(editingTask ? `/tasks/${editingTask.id}` : "/tasks", {
+        method: editingTask ? "PUT" : "POST",
+        body: JSON.stringify(payload)
+      });
+
+      setTasks((current) => {
+        const withoutReplacedPrimary =
+          savedTask.primaryTask && !editingTask?.primaryTask
+            ? current.map((task) => ({ ...task, primaryTask: false }))
+            : current;
+
+        if (editingTask) {
+          return withoutReplacedPrimary.map((task) => (task.id === savedTask.id ? savedTask : task));
+        }
+
+        return [savedTask, ...withoutReplacedPrimary];
+      });
+      setFeedback({ type: "success", message: editingTask ? "Missao atualizada." : "Missao criada." });
+      setIsModalOpen(false);
+      setEditingTask(null);
+      setFormValues(emptyTaskForm);
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Nao foi possivel salvar a missao."
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleMarkDone(task: StudyTask) {
+    setMarkingDoneTaskId(task.id);
+    setFeedback(null);
+
+    try {
+      const savedTask = await apiRequest<StudyTask>(`/tasks/${task.id}/done`, { method: "PATCH" });
+      setTasks((current) => current.map((item) => (item.id === savedTask.id ? savedTask : item)));
+      setFeedback({ type: "success", message: "Missao concluida." });
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Nao foi possivel concluir a missao."
+      });
+    } finally {
+      setMarkingDoneTaskId(null);
+    }
+  }
+
+  async function handleDeleteTask(task: StudyTask) {
+    setDeletingTaskId(task.id);
+    setFeedback(null);
+
+    try {
+      await apiRequest<null>(`/tasks/${task.id}`, { method: "DELETE" });
+      setTasks((current) => current.filter((item) => item.id !== task.id));
+      setFeedback({ type: "success", message: "Missao excluida." });
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Nao foi possivel excluir a missao."
+      });
+    } finally {
+      setDeletingTaskId(null);
+    }
+  }
+
+  function renderTaskCard(task: StudyTask, variant: "primary" | "secondary") {
+    return (
+      <article className={`task-card ${variant}`} key={task.id}>
+        <div className="task-card-heading">
+          <span className={`task-status tone-${task.status.toLowerCase()}`}>{getTaskStatusLabel(task.status)}</span>
+          <time>{formatDate(task.updatedAt)}</time>
+        </div>
+
+        <h3>{task.title}</h3>
+        {task.description ? <p>{task.description}</p> : <p>Sem descricao adicionada.</p>}
+
+        <div className="task-card-actions">
+          {task.status !== "DONE" ? (
+            <button type="button" onClick={() => handleMarkDone(task)} disabled={markingDoneTaskId === task.id}>
+              <DashboardIcon name="check" />
+              Concluir
+            </button>
+          ) : null}
+          <button type="button" onClick={() => openEditModal(task)} aria-label="Editar missao">
+            <DashboardIcon name="edit" />
+          </button>
+          <button
+            type="button"
+            onClick={() => handleDeleteTask(task)}
+            disabled={deletingTaskId === task.id}
+            aria-label="Excluir missao"
+          >
+            <DashboardIcon name="trash" />
+          </button>
+        </div>
+      </article>
+    );
+  }
+
+  return (
+    <div className="tasks-page">
+      <section className="tasks-toolbar" aria-label="Resumo das missoes">
+        <div>
+          <span>{isLoading ? "Carregando" : `${tasks.length} missoes`}</span>
+          <strong>{progress}% concluido</strong>
+        </div>
+
+        <div className="tasks-progress" aria-label="Progresso visual de missoes">
+          <span style={{ width: `${progress}%` }} />
+        </div>
+
+        <button type="button" onClick={() => openCreateModal(false)}>
+          <DashboardIcon name="plus" />
+          Nova missao
+        </button>
+      </section>
+
+      <section className="task-status-grid" aria-label="Status das missoes">
+        <div>
+          <span>TODO</span>
+          <strong>{todoCount}</strong>
+        </div>
+        <div>
+          <span>DOING</span>
+          <strong>{doingCount}</strong>
+        </div>
+        <div>
+          <span>DONE</span>
+          <strong>{doneCount}</strong>
+        </div>
+      </section>
+
+      {feedback ? (
+        <div className={`feedback ${feedback.type}`} role="status">
+          {feedback.message}
+        </div>
+      ) : null}
+
+      <section className="primary-mission" aria-label="Missao principal">
+        <div className="mission-section-heading">
+          <div>
+            <span>Missao principal</span>
+            <h2>Foco agora</h2>
+          </div>
+          <button type="button" onClick={() => openCreateModal(true)}>
+            <DashboardIcon name="mission" />
+            Definir principal
+          </button>
+        </div>
+
+        {isLoading ? (
+          <div className="empty-state">Carregando missoes...</div>
+        ) : primaryTask ? (
+          renderTaskCard(primaryTask, "primary")
+        ) : (
+          <div className="empty-state mission-empty">
+            <DashboardIcon name="mission" />
+            <strong>Nenhuma missao principal</strong>
+            <p>Escolha uma tarefa central para guiar sua proxima sessao.</p>
+          </div>
+        )}
+      </section>
+
+      <section className="secondary-missions" aria-label="Missoes secundarias">
+        <div className="mission-section-heading">
+          <div>
+            <span>Missoes secundarias</span>
+            <h2>Proximos passos</h2>
+          </div>
+        </div>
+
+        <div className="secondary-missions-grid">
+          {!isLoading && secondaryTasks.length === 0 ? (
+            <div className="empty-state mission-empty">
+              <DashboardIcon name="check" />
+              <strong>Nenhuma missao secundaria</strong>
+              <p>Adicione passos menores para destravar a missao principal.</p>
+            </div>
+          ) : (
+            secondaryTasks.map((task) => renderTaskCard(task, "secondary"))
+          )}
+        </div>
+      </section>
+
+      {isModalOpen ? (
+        <div className="modal-backdrop" role="presentation" onMouseDown={closeTaskModal}>
+          <form
+            className="subject-modal task-modal"
+            onSubmit={handleTaskSubmit}
+            onMouseDown={(event) => event.stopPropagation()}
+            aria-label={editingTask ? "Editar missao" : "Nova missao"}
+          >
+            <div className="modal-heading">
+              <div>
+                <span>{editingTask ? "Editar" : "Nova"}</span>
+                <h2>{editingTask ? "Editar missao" : "Nova missao"}</h2>
+              </div>
+              <button type="button" onClick={closeTaskModal} aria-label="Fechar modal">
+                <DashboardIcon name="close" />
+              </button>
+            </div>
+
+            <label>
+              Titulo
+              <input
+                type="text"
+                value={formValues.title}
+                onChange={(event) => updateTaskField("title", event.target.value)}
+                placeholder="Ex: Revisar funcoes quadraticas"
+                maxLength={160}
+                required
+                autoFocus
+              />
+            </label>
+
+            <label>
+              Descricao
+              <textarea
+                value={formValues.description}
+                onChange={(event) => updateTaskField("description", event.target.value)}
+                placeholder="Detalhe o objetivo da missao..."
+                maxLength={1000}
+              />
+            </label>
+
+            <label>
+              Status
+              <select
+                value={formValues.status}
+                onChange={(event) => updateTaskField("status", event.target.value as TaskStatus)}
+                required
+              >
+                <option value="TODO">TODO</option>
+                <option value="DOING">DOING</option>
+                <option value="DONE">DONE</option>
+              </select>
+            </label>
+
+            <label className="task-primary-toggle">
+              <input
+                type="checkbox"
+                checked={formValues.primaryTask}
+                onChange={(event) => updateTaskField("primaryTask", event.target.checked)}
+              />
+              Missao principal
+            </label>
+
+            <div className="editor-actions">
+              <button type="button" className="ghost-button" onClick={closeTaskModal}>
+                Cancelar
+              </button>
+              <button type="submit" className="save-note-button" disabled={isSaving}>
+                <DashboardIcon name="check" />
+                {isSaving ? "Salvando..." : "Salvar"}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -2062,6 +2604,10 @@ function getSubmitLabel(mode: AuthMode) {
 }
 
 function getSectionSubtitle(section: HomeSection) {
+  if (section === "tasks") {
+    return "Defina uma missao principal, acompanhe passos secundarios e avance por status.";
+  }
+
   if (section === "subjects") {
     return "Crie e mantenha os assuntos que organizam suas anotacoes.";
   }
@@ -2200,6 +2746,14 @@ function DashboardIcon({ name }: { name: string }) {
       <>
         <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
         <path d="M19 12a7.8 7.8 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a7.4 7.4 0 0 0-1.7-1L14.5 3h-5l-.4 3a7.4 7.4 0 0 0-1.7 1L5 6 3 9.5 5 11a7.8 7.8 0 0 0 0 2l-2 1.5L5 18l2.4-1a7.4 7.4 0 0 0 1.7 1l.4 3h5l.4-3a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.5-2-1.5c.1-.3.1-.7.1-1Z" />
+      </>
+    ),
+    mission: (
+      <>
+        <path d="M4 5h11l5 5-5 5H4z" />
+        <path d="M4 15v6" />
+        <path d="M8 9h6" />
+        <path d="M8 12h4" />
       </>
     ),
     rocket: (

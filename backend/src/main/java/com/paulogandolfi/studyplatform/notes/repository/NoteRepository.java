@@ -13,5 +13,7 @@ public interface NoteRepository extends JpaRepository<Note, UUID> {
 
     List<Note> findAllBySubject_IdAndSubject_User_IdOrderByCreatedAtAsc(UUID subjectId, UUID userId);
 
+    long countBySubject_User_Id(UUID userId);
+
     Optional<Note> findByIdAndSubject_User_Id(UUID id, UUID userId);
 }

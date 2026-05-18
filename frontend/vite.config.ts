@@ -21,6 +21,10 @@ export default defineConfig({
       "/flashcards": {
         target: "http://localhost:8081",
         changeOrigin: true
+      },
+      "/metrics": {
+        target: "http://localhost:8081",
+        changeOrigin: true
       }
     }
   }
