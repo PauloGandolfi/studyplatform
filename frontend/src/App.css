@@ -763,6 +763,11 @@ button {
   margin: 30px 0;
 }
 
+.dashboard-empty {
+  grid-column: 1 / -1;
+  min-height: 150px;
+}
+
 .metric-card,
 .activity-panel,
 .progress-panel {
@@ -878,6 +883,17 @@ button {
 .activity-list {
   display: grid;
   gap: 12px;
+}
+
+.activity-empty {
+  min-height: 120px;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  color: rgba(255, 255, 255, 0.72);
+  text-align: center;
 }
 
 .activity-item {
@@ -1000,10 +1016,11 @@ button {
   color: #fff;
   background:
     radial-gradient(circle at center, #17182f 58%, transparent 60%),
-    conic-gradient(#4db2ff 0 75%, rgba(255, 255, 255, 0.12) 75% 100%);
+    conic-gradient(#4db2ff 0 var(--progress, 0%), rgba(255, 255, 255, 0.12) var(--progress, 0%) 100%);
   font-weight: 950;
 }
 
+.tasks-page,
 .notes-page,
 .flashcards-page,
 .review-session-page {
@@ -1016,6 +1033,7 @@ button {
   gap: 18px;
 }
 
+.tasks-toolbar,
 .subjects-toolbar,
 .flashcards-toolbar,
 .notes-toolbar {
@@ -1030,10 +1048,15 @@ button {
   background: rgba(255, 255, 255, 0.045);
 }
 
+.tasks-toolbar {
+  grid-template-columns: minmax(0, 0.8fr) minmax(220px, 1fr) auto;
+}
+
 .subjects-toolbar {
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.tasks-toolbar div,
 .subjects-toolbar div,
 .flashcards-toolbar div,
 .notes-toolbar div {
@@ -1041,6 +1064,8 @@ button {
   gap: 5px;
 }
 
+.tasks-toolbar span,
+.mission-section-heading span,
 .subjects-toolbar span,
 .flashcards-toolbar span,
 .notes-toolbar span,
@@ -1054,14 +1079,15 @@ button {
   text-transform: uppercase;
 }
 
-.subjects-toolbar strong,
+.tasks-toolbar strong,
 .flashcards-toolbar strong,
 .notes-toolbar strong {
   color: #fff;
   font-size: 1.16rem;
 }
 
-.subjects-toolbar button,
+.tasks-toolbar button,
+.mission-section-heading button,
 .flashcards-toolbar button,
 .notes-toolbar button,
 .save-note-button {
@@ -1079,12 +1105,216 @@ button {
   box-shadow: 0 14px 32px rgba(63, 113, 255, 0.28);
 }
 
-.subjects-toolbar button:disabled,
+.tasks-toolbar button:disabled,
+.mission-section-heading button:disabled,
 .flashcards-toolbar button:disabled,
 .notes-toolbar button:disabled,
 .save-note-button:disabled {
   cursor: not-allowed;
   opacity: 0.58;
+}
+
+.tasks-progress {
+  height: 14px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.tasks-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(135deg, #55d88d, #39bbff);
+  transition: width 180ms ease;
+}
+
+.task-status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.task-status-grid div {
+  min-height: 96px;
+  display: grid;
+  gap: 6px;
+  align-content: center;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.task-status-grid span {
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 0.78rem;
+  font-weight: 950;
+  letter-spacing: 0.09em;
+}
+
+.task-status-grid strong {
+  color: #fff;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.primary-mission,
+.secondary-missions {
+  display: grid;
+  gap: 16px;
+}
+
+.mission-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.mission-section-heading div {
+  display: grid;
+  gap: 6px;
+}
+
+.mission-section-heading h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 1.34rem;
+}
+
+.secondary-missions-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.task-card {
+  display: grid;
+  gap: 14px;
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 16% 0%, rgba(54, 178, 255, 0.13), transparent 12rem),
+    rgba(255, 255, 255, 0.045);
+  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.18);
+}
+
+.task-card.primary {
+  min-height: 250px;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(90, 213, 157, 0.18), transparent 16rem),
+    linear-gradient(135deg, rgba(37, 91, 129, 0.36), rgba(82, 54, 139, 0.24)),
+    rgba(255, 255, 255, 0.045);
+}
+
+.task-card.secondary {
+  min-height: 260px;
+}
+
+.task-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.task-card-heading time {
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 0.78rem;
+  text-align: right;
+}
+
+.task-status {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 0.75rem;
+  font-weight: 950;
+}
+
+.task-status.tone-todo {
+  color: #d8ecff;
+  background: rgba(74, 169, 255, 0.18);
+}
+
+.task-status.tone-doing {
+  color: #fff1c8;
+  background: rgba(239, 179, 69, 0.2);
+}
+
+.task-status.tone-done {
+  color: #c8f7dc;
+  background: rgba(59, 207, 120, 0.18);
+}
+
+.task-card h3 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(1.25rem, 2.2vw, 2rem);
+  line-height: 1.12;
+  overflow-wrap: anywhere;
+}
+
+.task-card p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.74);
+  line-height: 1.58;
+  overflow-wrap: anywhere;
+}
+
+.task-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.task-card-actions button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 0 12px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.07);
+  font-weight: 900;
+}
+
+.task-card-actions button:first-child:not(:last-child) {
+  background: rgba(59, 207, 120, 0.14);
+}
+
+.task-card-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.task-modal {
+  width: min(620px, 100%);
+}
+
+.task-primary-toggle {
+  grid-template-columns: 18px 1fr;
+  align-items: center;
+}
+
+.task-primary-toggle input {
+  width: 18px;
+  min-height: 18px;
+  padding: 0;
+  accent-color: #55d88d;
+}
+
+.mission-empty {
+  min-height: 220px;
 }
 
 .subjects-grid {
@@ -1845,6 +2075,7 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .secondary-missions-grid,
   .subjects-grid,
   .flashcards-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1959,6 +2190,7 @@ button {
     width: min(100%, 620px);
   }
 
+  .tasks-toolbar,
   .notes-toolbar,
   .flashcards-toolbar {
     grid-template-columns: 1fr;
@@ -1970,12 +2202,15 @@ button {
     align-items: stretch;
   }
 
+  .tasks-toolbar button,
+  .mission-section-heading button,
   .subjects-toolbar button,
   .flashcards-toolbar button,
   .notes-toolbar button {
     width: 100%;
   }
 
+  .secondary-missions-grid,
   .subjects-grid,
   .flashcards-grid {
     grid-template-columns: 1fr;
@@ -2189,6 +2424,15 @@ button {
 
   .panel-heading {
     align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .task-status-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mission-section-heading {
+    align-items: stretch;
     flex-direction: column;
   }
 

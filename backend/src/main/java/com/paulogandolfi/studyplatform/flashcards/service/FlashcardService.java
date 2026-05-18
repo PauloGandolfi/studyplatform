@@ -5,8 +5,11 @@ import com.paulogandolfi.studyplatform.flashcards.dto.FlashcardResponse;
 import com.paulogandolfi.studyplatform.flashcards.dto.FlashcardReviewRequest;
 import com.paulogandolfi.studyplatform.flashcards.entity.Flashcard;
 import com.paulogandolfi.studyplatform.flashcards.repository.FlashcardRepository;
+import com.paulogandolfi.studyplatform.sessions.entity.StudySession;
+import com.paulogandolfi.studyplatform.sessions.repository.StudySessionRepository;
 import com.paulogandolfi.studyplatform.subjects.entity.Subject;
 import com.paulogandolfi.studyplatform.subjects.repository.SubjectRepository;
+import com.paulogandolfi.studyplatform.users.repository.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,10 +24,19 @@ public class FlashcardService {
 
     private final FlashcardRepository flashcardRepository;
     private final SubjectRepository subjectRepository;
+    private final UserRepository userRepository;
+    private final StudySessionRepository studySessionRepository;
 
-    public FlashcardService(FlashcardRepository flashcardRepository, SubjectRepository subjectRepository) {
+    public FlashcardService(
+            FlashcardRepository flashcardRepository,
+            SubjectRepository subjectRepository,
+            UserRepository userRepository,
+            StudySessionRepository studySessionRepository
+    ) {
         this.flashcardRepository = flashcardRepository;
         this.subjectRepository = subjectRepository;
+        this.userRepository = userRepository;
+        this.studySessionRepository = studySessionRepository;
     }
 
     @Transactional
@@ -98,6 +110,10 @@ public class FlashcardService {
             flashcard.setReviewInterval(1);
             flashcard.setNextReviewDate(today.plusDays(1));
         }
+
+        userRepository.findById(userId)
+                .map(user -> new StudySession(user, 1, request.correct() ? 1 : 0, today))
+                .ifPresent(studySessionRepository::save);
 
         return FlashcardResponse.from(flashcard);
     }
