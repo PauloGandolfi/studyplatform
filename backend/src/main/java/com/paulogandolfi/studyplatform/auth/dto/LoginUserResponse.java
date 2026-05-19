@@ -8,6 +8,7 @@ import java.util.UUID;
 public record LoginUserResponse(
         UUID id,
         String name,
+        String username,
         String email,
         LocalDateTime createdAt,
         String accessToken,
@@ -18,6 +19,7 @@ public record LoginUserResponse(
         return new LoginUserResponse(
                 user.getId(),
                 user.getName(),
+                user.getUsername(),
                 user.getEmail(),
                 user.getCreatedAt(),
                 accessToken,

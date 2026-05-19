@@ -24,6 +24,9 @@ public class User {
     @Column(nullable = false, length = 120)
     private String name;
 
+    @Column(nullable = false, unique = true, length = 60)
+    private String username;
+
     @Column(nullable = false, unique = true, length = 180)
     private String email;
 
@@ -40,7 +43,12 @@ public class User {
     }
 
     public User(String name, String email, String password) {
+        this(name, defaultUsernameFromEmail(email), email, password);
+    }
+
+    public User(String name, String username, String email, String password) {
         this.name = name;
+        this.username = username;
         this.email = email;
         this.password = password;
     }
@@ -69,6 +77,14 @@ public class User {
         this.name = name;
     }
 
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
     public String getEmail() {
         return email;
     }
@@ -91,5 +107,15 @@ public class User {
 
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
+    }
+
+    private static String defaultUsernameFromEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return "";
+        }
+
+        int separatorIndex = email.indexOf('@');
+        String username = separatorIndex >= 0 ? email.substring(0, separatorIndex) : email;
+        return username.trim().toLowerCase();
     }
 }

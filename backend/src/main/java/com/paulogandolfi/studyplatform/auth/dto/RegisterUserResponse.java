@@ -8,6 +8,7 @@ import java.util.UUID;
 public record RegisterUserResponse(
         UUID id,
         String name,
+        String username,
         String email,
         LocalDateTime createdAt
 ) {
@@ -16,6 +17,7 @@ public record RegisterUserResponse(
         return new RegisterUserResponse(
                 user.getId(),
                 user.getName(),
+                user.getUsername(),
                 user.getEmail(),
                 user.getCreatedAt()
         );
