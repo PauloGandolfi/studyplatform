@@ -1,4 +1,4 @@
-import { CSSProperties, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import spaceImage from "./assets/space-login.png";
 import studyPlatformLogo from "./assets/study-platform-logo.png";
 
@@ -14,13 +14,10 @@ type Feedback = {
 type LoginResponse = {
   id: string;
   name: string;
+  username: string;
   email: string;
   accessToken: string;
   tokenType: string;
-};
-
-type GoogleCredentialResponse = {
-  credential?: string;
 };
 
 type Subject = {
@@ -116,30 +113,13 @@ type SubjectFormValues = {
   name: string;
 };
 
-declare global {
-  interface Window {
-    google?: {
-      accounts: {
-        id: {
-          initialize: (config: {
-            client_id: string;
-            callback: (response: GoogleCredentialResponse) => void;
-          }) => void;
-          renderButton: (parent: HTMLElement, options: Record<string, string | number>) => void;
-          cancel: () => void;
-        };
-      };
-    };
-  }
-}
-
 const initialValues = {
   name: "",
+  username: "",
   email: "",
   password: ""
 };
 
-const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 const initialResetToken = new URLSearchParams(window.location.search).get("resetToken") ?? "";
 
 const navItems: Array<{
@@ -410,7 +390,7 @@ function getDifficultyLabel(difficulty: Difficulty) {
   return "Media";
 }
 
-function getTaskStatusLabel(status: TaskStatus) {
+function getTaskStatusLabel(status: TaskStatus | string | null | undefined) {
   if (status === "TODO") {
     return "TODO";
   }
@@ -419,7 +399,19 @@ function getTaskStatusLabel(status: TaskStatus) {
     return "DOING";
   }
 
-  return "DONE";
+  if (status === "DONE") {
+    return "DONE";
+  }
+
+  return "TODO";
+}
+
+function getTaskStatusTone(status: TaskStatus | string | null | undefined) {
+  if (status === "TODO" || status === "DOING" || status === "DONE") {
+    return status.toLowerCase();
+  }
+
+  return "todo";
 }
 
 function getTaskProgress(tasks: StudyTask[]) {
@@ -438,6 +430,63 @@ function getSectionLabel(section: HomeSection) {
   return placeholderTitles[section];
 }
 
+function confirmDelete(itemLabel: string) {
+  return window.confirm(`Tem certeza que deseja excluir ${itemLabel}? Esta acao nao pode ser desfeita.`);
+}
+
+function ToastFeedback({
+  feedback,
+  onClose,
+  children
+}: {
+  feedback: Feedback | null;
+  onClose?: () => void;
+  children?: ReactNode;
+}) {
+  useEffect(() => {
+    if (!feedback || !onClose) {
+      return;
+    }
+
+    const timeout = window.setTimeout(onClose, feedback.type === "success" ? 4200 : 6200);
+    return () => window.clearTimeout(timeout);
+  }, [feedback, onClose]);
+
+  if (!feedback) {
+    return null;
+  }
+
+  return (
+    <div className={`feedback toast-feedback ${feedback.type}`} role="status">
+      <span className="toast-icon">
+        <DashboardIcon name={feedback.type === "success" ? "check" : "alert"} />
+      </span>
+      <p>{feedback.message}</p>
+      {children}
+      {onClose ? (
+        <button className="toast-close" type="button" onClick={onClose} aria-label="Fechar mensagem">
+          <DashboardIcon name="close" />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function LoadingSkeleton({ variant = "cards", count = 3 }: { variant?: "cards" | "list" | "detail"; count?: number }) {
+  return (
+    <div className={`skeleton-group skeleton-${variant}`} aria-label="Carregando">
+      {Array.from({ length: count }, (_, index) => (
+        <div className="skeleton-card" key={index}>
+          <span className="skeleton-icon" />
+          <span className="skeleton-line strong" />
+          <span className="skeleton-line" />
+          <span className="skeleton-line short" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function App() {
   const [mode, setMode] = useState<AuthMode>(() => (initialResetToken ? "reset" : "login"));
   const [currentView, setCurrentView] = useState<AppView>(() =>
@@ -446,17 +495,16 @@ function App() {
   const [values, setValues] = useState(initialValues);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
   const [userName, setUserName] = useState<string | null>(() => getStoredUserName());
   const [resetToken, setResetToken] = useState(initialResetToken);
   const [currentSection, setCurrentSection] = useState<HomeSection>("dashboard");
-  const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
   const isRegister = mode === "register";
   const isForgotPassword = mode === "forgot";
   const isResetPassword = mode === "reset";
   const showPassword = !isForgotPassword;
-  const showEmail = !isResetPassword;
+  const showEmail = isRegister || isForgotPassword;
+  const showUsername = mode === "login" || isRegister;
   const title = getAuthTitle(mode);
   const subtitle = getAuthSubtitle(mode);
 
@@ -488,88 +536,6 @@ function App() {
     }
   }
 
-  const handleGoogleCredential = useCallback(async (response: GoogleCredentialResponse) => {
-    if (!response.credential) {
-      setFeedback({ type: "error", message: "Nao foi possivel entrar com Google." });
-      return;
-    }
-
-    setIsGoogleSubmitting(true);
-    setFeedback(null);
-
-    try {
-      const result = await fetch("/auth/google", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ idToken: response.credential })
-      });
-
-      const data = await readResponse(result);
-
-      if (!result.ok) {
-        throw new Error(getErrorMessage(result.status, data));
-      }
-
-      completeLogin(data as LoginResponse);
-    } catch (error) {
-      setFeedback({
-        type: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Nao foi possivel entrar com Google."
-      });
-    } finally {
-      setIsGoogleSubmitting(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (mode !== "login" || !googleClientId || !googleButtonRef.current) {
-      return;
-    }
-
-    let cancelled = false;
-    const clientId = googleClientId;
-
-    function renderGoogleButton() {
-      if (cancelled || !window.google || !googleButtonRef.current) {
-        return;
-      }
-
-      googleButtonRef.current.innerHTML = "";
-      window.google.accounts.id.initialize({
-        client_id: clientId,
-        callback: handleGoogleCredential
-      });
-      window.google.accounts.id.renderButton(googleButtonRef.current, {
-        theme: "outline",
-        size: "large",
-        text: "continue_with",
-        shape: "rectangular",
-        width: 360
-      });
-    }
-
-    if (window.google) {
-      renderGoogleButton();
-    } else {
-      const script = document.createElement("script");
-      script.src = "https://accounts.google.com/gsi/client";
-      script.async = true;
-      script.defer = true;
-      script.onload = renderGoogleButton;
-      document.head.appendChild(script);
-    }
-
-    return () => {
-      cancelled = true;
-      window.google?.accounts.id.cancel();
-    };
-  }, [handleGoogleCredential, mode]);
-
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
@@ -594,7 +560,7 @@ function App() {
 
       if (isRegister) {
         setMode("login");
-        setValues({ ...initialValues, email: values.email.trim() });
+        setValues({ ...initialValues, username: values.username.trim().toLowerCase() });
         setFeedback({
           type: "success",
           message: "Conta criada com sucesso. Agora entre com sua senha."
@@ -736,6 +702,26 @@ function App() {
                 </label>
               ) : null}
 
+              {showUsername ? (
+                <label>
+                  Usuario
+                  <span className="input-wrap">
+                    <UserIcon />
+                    <input
+                      type="text"
+                      autoComplete="username"
+                      value={values.username}
+                      onChange={(event) => updateField("username", event.target.value)}
+                      placeholder="seu.usuario"
+                      minLength={3}
+                      maxLength={60}
+                      pattern="[a-zA-Z0-9._-]+"
+                      required
+                    />
+                  </span>
+                </label>
+              ) : null}
+
               {showEmail ? (
                 <label>
                   Email
@@ -783,11 +769,7 @@ function App() {
                 </div>
               ) : null}
 
-              {feedback ? (
-                <div className={`feedback ${feedback.type}`} role="status">
-                  {feedback.message}
-                </div>
-              ) : null}
+              <ToastFeedback feedback={feedback} onClose={() => setFeedback(null)} />
 
               <button className="submit-button" type="submit" disabled={isSubmitting}>
                 {isSubmitting
@@ -795,22 +777,6 @@ function App() {
                   : getSubmitLabel(mode)}
               </button>
             </form>
-
-            {mode === "login" ? (
-              <div className="google-section">
-                <div className="auth-divider">
-                  <span>ou</span>
-                </div>
-                {googleClientId ? (
-                  <>
-                    <div ref={googleButtonRef} className="google-button-slot" />
-                    {isGoogleSubmitting ? <p className="google-status">Entrando com Google...</p> : null}
-                  </>
-                ) : (
-                  <p className="google-status">Configure VITE_GOOGLE_CLIENT_ID para habilitar Google.</p>
-                )}
-              </div>
-            ) : null}
 
             {mode === "login" || mode === "register" ? (
               <p className="switch-copy">
@@ -981,19 +947,14 @@ function DashboardHome() {
           </div>
         </section>
 
-        {feedback ? (
-          <div className={`feedback ${feedback.type}`} role="status">
-            {feedback.message}
-            <button type="button" onClick={loadDashboard}>
-              Tentar novamente
-            </button>
-          </div>
-        ) : null}
+        <ToastFeedback feedback={feedback} onClose={() => setFeedback(null)}>
+          <button type="button" onClick={loadDashboard}>
+            Tentar novamente
+          </button>
+        </ToastFeedback>
 
         <section className="overview-grid" aria-label="Resumo dos estudos">
-          {isLoading ? (
-            <div className="empty-state dashboard-empty">Carregando metricas...</div>
-          ) : null}
+          {isLoading ? <LoadingSkeleton variant="cards" count={4} /> : null}
 
           {!isLoading && overviewCards.map((card) => (
             <article className="metric-card" key={card.label}>
@@ -1238,6 +1199,10 @@ function TasksPage() {
   }
 
   async function handleDeleteTask(task: StudyTask) {
+    if (!confirmDelete(`a missao "${task.title}"`)) {
+      return;
+    }
+
     setDeletingTaskId(task.id);
     setFeedback(null);
 
@@ -1259,7 +1224,7 @@ function TasksPage() {
     return (
       <article className={`task-card ${variant}`} key={task.id}>
         <div className="task-card-heading">
-          <span className={`task-status tone-${task.status.toLowerCase()}`}>{getTaskStatusLabel(task.status)}</span>
+          <span className={`task-status tone-${getTaskStatusTone(task.status)}`}>{getTaskStatusLabel(task.status)}</span>
           <time>{formatDate(task.updatedAt)}</time>
         </div>
 
@@ -1322,11 +1287,7 @@ function TasksPage() {
         </div>
       </section>
 
-      {feedback ? (
-        <div className={`feedback ${feedback.type}`} role="status">
-          {feedback.message}
-        </div>
-      ) : null}
+      <ToastFeedback feedback={feedback} onClose={() => setFeedback(null)} />
 
       <section className="primary-mission" aria-label="Missao principal">
         <div className="mission-section-heading">
@@ -1341,7 +1302,7 @@ function TasksPage() {
         </div>
 
         {isLoading ? (
-          <div className="empty-state">Carregando missoes...</div>
+          <LoadingSkeleton variant="detail" count={1} />
         ) : primaryTask ? (
           renderTaskCard(primaryTask, "primary")
         ) : (
@@ -1362,7 +1323,9 @@ function TasksPage() {
         </div>
 
         <div className="secondary-missions-grid">
-          {!isLoading && secondaryTasks.length === 0 ? (
+          {isLoading ? (
+            <LoadingSkeleton variant="cards" count={3} />
+          ) : secondaryTasks.length === 0 ? (
             <div className="empty-state mission-empty">
               <DashboardIcon name="check" />
               <strong>Nenhuma missao secundaria</strong>
@@ -1548,6 +1511,10 @@ function SubjectsPage() {
   }
 
   async function handleDeleteSubject(subject: Subject) {
+    if (!confirmDelete(`o assunto "${subject.name}"`)) {
+      return;
+    }
+
     setDeletingSubjectId(subject.id);
     setFeedback(null);
 
@@ -1579,14 +1546,12 @@ function SubjectsPage() {
         </button>
       </section>
 
-      {feedback ? (
-        <div className={`feedback ${feedback.type}`} role="status">
-          {feedback.message}
-        </div>
-      ) : null}
+      <ToastFeedback feedback={feedback} onClose={() => setFeedback(null)} />
 
       <section className="subjects-grid" aria-label="Lista de assuntos">
-        {!isLoading && subjects.length === 0 ? (
+        {isLoading ? (
+          <LoadingSkeleton variant="cards" count={3} />
+        ) : subjects.length === 0 ? (
           <div className="empty-state subjects-empty">
             <DashboardIcon name="book" />
             <strong>Nenhum assunto ainda</strong>
@@ -1801,6 +1766,10 @@ function FlashcardsPage() {
   }
 
   async function handleDeleteFlashcard(flashcard: Flashcard) {
+    if (!confirmDelete("este flashcard")) {
+      return;
+    }
+
     setDeletingFlashcardId(flashcard.id);
     setFeedback(null);
 
@@ -1851,15 +1820,11 @@ function FlashcardsPage() {
         </button>
       </section>
 
-      {feedback ? (
-        <div className={`feedback ${feedback.type}`} role="status">
-          {feedback.message}
-        </div>
-      ) : null}
+      <ToastFeedback feedback={feedback} onClose={() => setFeedback(null)} />
 
       <section className="flashcards-grid" aria-label="Lista de flashcards">
         {isLoading ? (
-          <div className="empty-state flashcards-empty">Carregando flashcards...</div>
+          <LoadingSkeleton variant="cards" count={3} />
         ) : flashcards.length === 0 ? (
           <div className="empty-state flashcards-empty">
             <DashboardIcon name="cards" />
@@ -2078,7 +2043,7 @@ function ReviewSessionPage() {
   if (isLoading) {
     return (
       <section className="review-session-page">
-        <div className="empty-state review-empty">Carregando revisoes...</div>
+        <LoadingSkeleton variant="detail" count={1} />
       </section>
     );
   }
@@ -2086,9 +2051,7 @@ function ReviewSessionPage() {
   if (feedback) {
     return (
       <section className="review-session-page">
-        <div className={`feedback ${feedback.type}`} role="status">
-          {feedback.message}
-        </div>
+        <ToastFeedback feedback={feedback} onClose={() => setFeedback(null)} />
         <button className="review-secondary-button" type="button" onClick={loadReviewSession}>
           Tentar novamente
         </button>
@@ -2304,6 +2267,10 @@ function NotesPage() {
       return;
     }
 
+    if (!confirmDelete(`a anotacao "${selectedNote.title}"`)) {
+      return;
+    }
+
     setIsDeleting(true);
     setFeedback(null);
 
@@ -2361,16 +2328,12 @@ function NotesPage() {
         </button>
       </section>
 
-      {feedback ? (
-        <div className={`feedback ${feedback.type}`} role="status">
-          {feedback.message}
-        </div>
-      ) : null}
+      <ToastFeedback feedback={feedback} onClose={() => setFeedback(null)} />
 
       <section className="notes-grid">
         <aside className="notes-list-panel" aria-label="Lista de anotacoes">
           {isLoading ? (
-            <div className="empty-state">Carregando anotacoes...</div>
+            <LoadingSkeleton variant="list" count={3} />
           ) : notes.length === 0 ? (
             <div className="empty-state">
               <DashboardIcon name="note" />
@@ -2397,7 +2360,9 @@ function NotesPage() {
         </aside>
 
         <article className="note-detail-panel">
-          {selectedNote ? (
+          {isLoading ? (
+            <LoadingSkeleton variant="detail" count={1} />
+          ) : selectedNote ? (
             <>
               <div className="note-detail-heading">
                 <div>
@@ -2553,6 +2518,7 @@ function getAuthRequest(mode: AuthMode, values: typeof initialValues, resetToken
       endpoint: "/auth/register",
       payload: {
         name: values.name.trim(),
+        username: values.username.trim(),
         email: values.email.trim(),
         password: values.password
       }
@@ -2581,7 +2547,7 @@ function getAuthRequest(mode: AuthMode, values: typeof initialValues, resetToken
   return {
     endpoint: "/auth/login",
     payload: {
-      email: values.email.trim(),
+      username: values.username.trim(),
       password: values.password
     }
   };
@@ -2653,11 +2619,11 @@ function getErrorMessage(status: number, data: unknown) {
   }
 
   if (status === 401) {
-    return "Email ou senha invalidos.";
+    return "Usuario ou senha invalidos.";
   }
 
   if (status === 409) {
-    return "Este email ja esta cadastrado.";
+    return "Este usuario ou email ja esta cadastrado.";
   }
 
   return "Nao foi possivel conectar. Verifique se o backend esta rodando.";
@@ -2799,6 +2765,13 @@ function DashboardIcon({ name }: { name: string }) {
       <>
         <path d="M6 6l12 12" />
         <path d="M18 6 6 18" />
+      </>
+    ),
+    alert: (
+      <>
+        <path d="M12 8v5" />
+        <path d="M12 17h.01" />
+        <path d="M10.3 3.8 2.6 18a2 2 0 0 0 1.8 3h15.2a2 2 0 0 0 1.8-3L13.7 3.8a2 2 0 0 0-3.4 0Z" />
       </>
     )
   };

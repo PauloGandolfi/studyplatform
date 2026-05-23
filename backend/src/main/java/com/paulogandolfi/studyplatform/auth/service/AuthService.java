@@ -56,13 +56,18 @@ public class AuthService {
     @Transactional
     public RegisterUserResponse register(RegisterUserRequest request) {
         String name = request.name().trim();
+        String username = request.username().trim().toLowerCase();
         String email = request.email().trim().toLowerCase();
+
+        if (userRepository.existsByUsername(username)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already registered");
+        }
 
         if (userRepository.existsByEmail(email)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already registered");
         }
 
-        User user = new User(name, email, passwordEncoder.encode(request.password()));
+        User user = new User(name, username, email, passwordEncoder.encode(request.password()));
         User savedUser = userRepository.save(user);
 
         return RegisterUserResponse.from(savedUser);
@@ -70,9 +75,9 @@ public class AuthService {
 
     @Transactional(readOnly = true)
     public LoginUserResponse login(LoginUserRequest request) {
-        String email = request.email().trim().toLowerCase();
+        String username = request.username().trim().toLowerCase();
 
-        User user = userRepository.findByEmail(email)
+        User user = userRepository.findByUsername(username)
                 .orElseThrow(AuthService::invalidCredentials);
 
         if (!passwordEncoder.matches(request.password(), user.getPassword())) {
@@ -89,6 +94,7 @@ public class AuthService {
         User user = userRepository.findByEmail(profile.email())
                 .orElseGet(() -> userRepository.save(new User(
                         profile.name().trim(),
+                        createAvailableUsername(profile.email()),
                         profile.email().trim().toLowerCase(),
                         passwordEncoder.encode(generateToken())
                 )));
@@ -136,7 +142,32 @@ public class AuthService {
     }
 
     private static ResponseStatusException invalidCredentials() {
-        return new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
+        return new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid username or password");
+    }
+
+    private String createAvailableUsername(String email) {
+        String normalizedEmail = email.trim().toLowerCase();
+        int separatorIndex = normalizedEmail.indexOf('@');
+        String baseUsername = separatorIndex >= 0 ? normalizedEmail.substring(0, separatorIndex) : normalizedEmail;
+        baseUsername = baseUsername.replaceAll("[^a-z0-9._-]", "-");
+
+        if (baseUsername.length() < 3) {
+            baseUsername = "user-" + baseUsername;
+        }
+
+        if (baseUsername.length() > 60) {
+            baseUsername = baseUsername.substring(0, 60);
+        }
+
+        String candidate = baseUsername;
+        int suffix = 1;
+        while (userRepository.existsByUsername(candidate)) {
+            String suffixText = "-" + suffix++;
+            int maxBaseLength = 60 - suffixText.length();
+            candidate = baseUsername.substring(0, Math.min(baseUsername.length(), maxBaseLength)) + suffixText;
+        }
+
+        return candidate;
     }
 
     private static String generateToken() {

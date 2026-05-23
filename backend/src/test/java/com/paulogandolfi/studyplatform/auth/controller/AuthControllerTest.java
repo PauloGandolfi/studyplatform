@@ -51,6 +51,7 @@ class AuthControllerTest {
                         .content("""
                                 {
                                   "name": "Paulo Gandolfi",
+                                  "username": "paulo",
                                   "email": "PAULO@example.com",
                                   "password": "password123"
                                 }
@@ -58,6 +59,7 @@ class AuthControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").exists())
                 .andExpect(jsonPath("$.name").value("Paulo Gandolfi"))
+                .andExpect(jsonPath("$.username").value("paulo"))
                 .andExpect(jsonPath("$.email").value("paulo@example.com"))
                 .andExpect(jsonPath("$.createdAt").exists())
                 .andExpect(jsonPath("$.password").doesNotExist());
@@ -77,6 +79,7 @@ class AuthControllerTest {
                         .content("""
                                 {
                                   "name": "Existing User",
+                                  "username": "new-existing-user",
                                   "email": "existing@example.com",
                                   "password": "password123"
                                 }
@@ -86,19 +89,20 @@ class AuthControllerTest {
 
     @Test
     void loginReturnsUserForValidCredentials() throws Exception {
-        User user = userRepository.save(new User("Login User", "login@example.com", passwordEncoder.encode("password123")));
+        User user = userRepository.save(new User("Login User", "login-user", "login@example.com", passwordEncoder.encode("password123")));
 
         MvcResult result = mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "email": "LOGIN@example.com",
+                                  "username": "LOGIN-USER",
                                   "password": "password123"
                                 }
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").exists())
                 .andExpect(jsonPath("$.name").value("Login User"))
+                .andExpect(jsonPath("$.username").value("login-user"))
                 .andExpect(jsonPath("$.email").value("login@example.com"))
                 .andExpect(jsonPath("$.createdAt").exists())
                 .andExpect(jsonPath("$.accessToken").exists())
@@ -125,7 +129,7 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "email": "wrong-password@example.com",
+                                  "username": "wrong-password",
                                   "password": "wrong-password"
                                 }
                 """))
