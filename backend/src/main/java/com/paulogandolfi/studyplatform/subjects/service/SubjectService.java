@@ -3,6 +3,7 @@ package com.paulogandolfi.studyplatform.subjects.service;
 import com.paulogandolfi.studyplatform.subjects.dto.SubjectRequest;
 import com.paulogandolfi.studyplatform.subjects.dto.SubjectResponse;
 import com.paulogandolfi.studyplatform.subjects.entity.Subject;
+import com.paulogandolfi.studyplatform.subjects.entity.SubjectDifficulty;
 import com.paulogandolfi.studyplatform.subjects.repository.SubjectRepository;
 import com.paulogandolfi.studyplatform.users.entity.User;
 import com.paulogandolfi.studyplatform.users.repository.UserRepository;
@@ -28,7 +29,7 @@ public class SubjectService {
     @Transactional
     public SubjectResponse create(UUID userId, SubjectRequest request) {
         User user = findUser(userId);
-        Subject subject = new Subject(user, normalizeName(request));
+        Subject subject = new Subject(user, normalizeName(request), normalizeDifficulty(request));
 
         return SubjectResponse.from(subjectRepository.save(subject));
     }
@@ -45,6 +46,7 @@ public class SubjectService {
     public SubjectResponse update(UUID userId, UUID subjectId, SubjectRequest request) {
         Subject subject = findSubject(subjectId, userId);
         subject.setName(normalizeName(request));
+        subject.setDifficulty(normalizeDifficulty(request));
 
         return SubjectResponse.from(subject);
     }
@@ -67,5 +69,9 @@ public class SubjectService {
 
     private static String normalizeName(SubjectRequest request) {
         return request.name().trim();
+    }
+
+    private static SubjectDifficulty normalizeDifficulty(SubjectRequest request) {
+        return request.difficulty() == null ? SubjectDifficulty.MEDIUM : request.difficulty();
     }
 }
