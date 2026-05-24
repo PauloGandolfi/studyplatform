@@ -1,4 +1,4 @@
-import { CSSProperties, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import spaceImage from "./assets/space-login.png";
 import studyPlatformLogo from "./assets/study-platform-logo.png";
 
@@ -23,6 +23,7 @@ type LoginResponse = {
 type Subject = {
   id: string;
   name: string;
+  difficulty: Difficulty;
   createdAt: string;
   updatedAt: string;
 };
@@ -116,6 +117,7 @@ type FlashcardFormValues = {
 
 type SubjectFormValues = {
   name: string;
+  difficulty: Difficulty;
 };
 
 const initialValues = {
@@ -132,16 +134,16 @@ const navItems: Array<{
   icon: string;
   section: HomeSection;
 }> = [
-  { label: "Dashboard", icon: "dashboard", section: "dashboard" },
-  { label: "Missões", icon: "mission", section: "tasks" },
-  { label: "Assuntos", icon: "book", section: "subjects" },
-  { label: "Anotações", icon: "note", section: "notes" },
-  { label: "Flashcards", icon: "cards", section: "flashcards" },
-  { label: "Revisoes", icon: "calendar", section: "reviews" },
-  { label: "Estatisticas", icon: "chart", section: "stats" },
-  { label: "Perfil", icon: "user", section: "profile" },
-  { label: "Configuracoes", icon: "settings", section: "settings" }
-];
+    { label: "Dashboard", icon: "dashboard", section: "dashboard" },
+    { label: "Missões", icon: "mission", section: "tasks" },
+    { label: "Assuntos", icon: "book", section: "subjects" },
+    { label: "Anotações", icon: "note", section: "notes" },
+    { label: "Flashcards", icon: "cards", section: "flashcards" },
+    { label: "Revisoes", icon: "calendar", section: "reviews" },
+    { label: "Estatisticas", icon: "chart", section: "stats" },
+    { label: "Perfil", icon: "user", section: "profile" },
+    { label: "Configuracoes", icon: "settings", section: "settings" }
+  ];
 
 const emptyNoteForm: NoteFormValues = {
   subjectId: "",
@@ -164,7 +166,8 @@ const emptyFlashcardForm: FlashcardFormValues = {
 };
 
 const emptySubjectForm: SubjectFormValues = {
-  name: ""
+  name: "",
+  difficulty: "MEDIUM"
 };
 
 const placeholderTitles: Record<HomeSection, string> = {
@@ -201,6 +204,8 @@ const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
 
 const notePreviewLimit = 128;
 const inactivityLimitMs = 15 * 60 * 1000;
+const pauseLimitSeconds = 15 * 60;
+const unauthorizedEventName = "studyplatform:unauthorized";
 
 function authorizationHeaders() {
   const token = localStorage.getItem("studyplatform_token");
@@ -225,7 +230,11 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}) {
   const data = await readResponse(response);
 
   if (!response.ok) {
-    throw new Error(getErrorMessage(response.status, data));
+    if (response.status === 401) {
+      window.dispatchEvent(new Event(unauthorizedEventName));
+    }
+
+    throw new Error(getErrorMessage(response.status, data, "app"));
   }
 
   return data as T;
@@ -343,22 +352,16 @@ function formatTimer(seconds: number) {
 }
 
 function formatStudyDuration(seconds: number) {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
+  return formatTimer(seconds);
+}
 
-  if (hours > 0 && minutes > 0) {
-    return `${hours}h ${String(minutes).padStart(2, "0")}min`;
-  }
+function formatPauseTimer(seconds: number) {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
 
-  if (hours > 0) {
-    return `${hours}h`;
-  }
-
-  if (seconds > 0 && minutes === 0) {
-    return "<1min";
-  }
-
-  return `${minutes}min`;
+  return [minutes, remainingSeconds]
+    .map((value) => String(value).padStart(2, "0"))
+    .join(":");
 }
 
 function buildOverviewCards(metrics: DashboardMetrics) {
@@ -591,7 +594,7 @@ function App() {
       const data = await readResponse(response);
 
       if (!response.ok) {
-        throw new Error(getErrorMessage(response.status, data));
+        throw new Error(getErrorMessage(response.status, data, mode === "login" ? "login" : "auth"));
       }
 
       if (isRegister) {
@@ -656,6 +659,25 @@ function App() {
     setCurrentView("home");
     setValues(initialValues);
   }
+
+  useEffect(() => {
+    function handleUnauthorized() {
+      localStorage.removeItem("studyplatform_token");
+      localStorage.removeItem("studyplatform_user");
+      setCurrentView("auth");
+      setUserName(null);
+      setMode("login");
+      setCurrentSection("dashboard");
+      setFeedback({
+        type: "error",
+        message: "Sua sessao expirou. Entre novamente para salvar suas alteracoes."
+      });
+    }
+
+    window.addEventListener(unauthorizedEventName, handleUnauthorized);
+
+    return () => window.removeEventListener(unauthorizedEventName, handleUnauthorized);
+  }, []);
 
   if (currentView === "home") {
     return (
@@ -935,8 +957,10 @@ function DashboardHome() {
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isStudying, setIsStudying] = useState(false);
+  const [isStudyPaused, setIsStudyPaused] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isSavingStudyTime, setIsSavingStudyTime] = useState(false);
+  const [pauseSecondsRemaining, setPauseSecondsRemaining] = useState(pauseLimitSeconds);
   const lastActivityAtRef = useRef(Date.now());
 
   const loadDashboard = useCallback(async () => {
@@ -998,28 +1022,68 @@ function DashboardHome() {
     return () => window.clearInterval(intervalId);
   }, [isStudying]);
 
+  useEffect(() => {
+    if (!isStudyPaused) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setPauseSecondsRemaining((current) => {
+        if (current <= 1) {
+          setIsStudyPaused(false);
+          setElapsedSeconds(0);
+          setFeedback({
+            type: "error",
+            message: "Pausa encerrada apos 15 minutos. O tempo da sessao foi resetado."
+          });
+          return pauseLimitSeconds;
+        }
+
+        return current - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [isStudyPaused]);
+
   const overviewCards = metrics ? buildOverviewCards(metrics) : [];
   const weeklyChart = buildWeeklyChart(metrics?.weeklyReviews ?? []);
   const dailyProgress = metrics?.dailyProgress ?? 0;
   const totalStudySeconds = metrics?.totalStudySeconds ?? 0;
-  const displayTotalStudySeconds = totalStudySeconds + (isStudying ? elapsedSeconds : 0);
+  const hasOpenStudySession = isStudying || isStudyPaused || isSavingStudyTime;
+  const displayTotalStudySeconds = totalStudySeconds + (hasOpenStudySession ? elapsedSeconds : 0);
 
   function handleStartStudying() {
     lastActivityAtRef.current = Date.now();
-    setElapsedSeconds(0);
+    setElapsedSeconds((current) => (isStudyPaused ? current : 0));
+    setPauseSecondsRemaining(pauseLimitSeconds);
+    setIsStudyPaused(false);
     setIsStudying(true);
     setFeedback(null);
   }
 
-  async function handlePauseStudying() {
+  function handlePauseStudying() {
+    setIsStudying(false);
+    setIsStudyPaused(true);
+    setPauseSecondsRemaining(pauseLimitSeconds);
+    setFeedback(null);
+  }
+
+  async function handleFinishStudying() {
     if (elapsedSeconds < 1) {
       setIsStudying(false);
+      setIsStudyPaused(false);
       setElapsedSeconds(0);
+      setPauseSecondsRemaining(pauseLimitSeconds);
       return;
     }
 
+    const wasStudying = isStudying;
+    const wasPaused = isStudyPaused;
+
     setIsSavingStudyTime(true);
     setIsStudying(false);
+    setIsStudyPaused(false);
     setFeedback(null);
 
     try {
@@ -1030,82 +1094,107 @@ function DashboardHome() {
 
       setMetrics((current) => current ? { ...current, totalStudySeconds: response.totalStudySeconds } : current);
       setElapsedSeconds(0);
+      setPauseSecondsRemaining(pauseLimitSeconds);
     } catch (error) {
       setFeedback({
         type: "error",
-        message: error instanceof Error ? error.message : "Nao foi possivel salvar o tempo de estudo."
+        message: error instanceof Error ? error.message : "Nao foi possivel registrar o tempo de estudo."
       });
-      setIsStudying(true);
+      setIsStudying(wasStudying);
+      setIsStudyPaused(wasPaused);
     } finally {
       setIsSavingStudyTime(false);
     }
   }
 
+  const studyButtonLabel = isStudying ? "Pausa" : isStudyPaused ? "Continuar" : "Comecar a estudar";
+  const studyButtonIcon = isStudying ? "pause" : isStudyPaused ? "play" : "spark";
+  const timerStatus = isStudying ? "Sessao ativa" : isStudyPaused ? "Sessao pausada" : "Tempo de estudo";
+  const timerDescription = isStudying
+    ? "Contando enquanto voce interage com o site."
+    : isStudyPaused
+      ? "A sessao fica guardada enquanto voce retorna dentro do limite."
+      : "Clique em Comecar a estudar para abrir uma nova sessao.";
+
   return (
     <>
-        <section className="hero-dashboard">
-          <img src={spaceImage} alt="" />
-          <div className="hero-shade" />
-          <div className="hero-layout">
-            <div className="hero-content">
-              <p>Foco do dia</p>
-              <h2>
-                Pequenos passos,
-                <span> grandes conquistas.</span>
-              </h2>
-              <p>
-                {metrics
-                  ? `${metrics.streak} dia(s) de sequencia e ${metrics.reviewsToday} revisao(oes) hoje.`
-                  : "Mantenha o foco e veja os resultados acontecerem."}
-              </p>
+      <section className="hero-dashboard">
+        <img src={spaceImage} alt="" />
+        <div className="hero-shade" />
+        <div className="hero-layout">
+          <div className="hero-content">
+            <p>Foco do dia</p>
+            <h2>
+              Pequenos passos,
+              <span> grandes conquistas.</span>
+            </h2>
+            <p>
+              {metrics
+                ? `${metrics.streak} dia(s) de sequencia e ${metrics.reviewsToday} revisao(oes) hoje.`
+                : "Mantenha o foco e veja os resultados acontecerem."}
+            </p>
+            <div className="study-actions">
               <button type="button" onClick={isStudying ? handlePauseStudying : handleStartStudying} disabled={isSavingStudyTime}>
-                <DashboardIcon name={isStudying ? "pause" : "spark"} />
-                {isSavingStudyTime ? "Salvando..." : isStudying ? "Pausa" : "Comecar a estudar"}
+                <DashboardIcon name={studyButtonIcon} />
+                {studyButtonLabel}
               </button>
+              {hasOpenStudySession ? (
+                <button className="study-finish-button" type="button" onClick={handleFinishStudying} disabled={isSavingStudyTime}>
+                  <DashboardIcon name="check" />
+                  {isSavingStudyTime ? "Salvando..." : "Finalizar"}
+                </button>
+              ) : null}
             </div>
-
-            <aside className={`study-timer-panel ${isStudying ? "active" : ""}`} aria-label="Contador de horas de estudo">
-              <div className="timer-heading">
-                <span>{isStudying ? "Sessao ativa" : "Tempo de estudo"}</span>
-                <DashboardIcon name="clock" />
-              </div>
-              <strong>{formatTimer(elapsedSeconds)}</strong>
-              <p>{isStudying ? "Contando enquanto voce interage com o site." : "Clique em Comecar a estudar para abrir uma nova sessao."}</p>
-              <div className="timer-total">
-                <span>Horas totais</span>
-                <b>{formatStudyDuration(displayTotalStudySeconds)}</b>
-              </div>
-            </aside>
           </div>
-        </section>
 
-        <ToastFeedback feedback={feedback} onClose={() => setFeedback(null)}>
-          <button type="button" onClick={loadDashboard}>
-            Tentar novamente
-          </button>
-        </ToastFeedback>
-
-        <section className="overview-grid" aria-label="Resumo dos estudos">
-          {isLoading ? <LoadingSkeleton variant="cards" count={4} /> : null}
-
-          {!isLoading && overviewCards.map((card) => (
-            <article className="metric-card" key={card.label}>
-              <div className="metric-icon">
-                <DashboardIcon name={card.icon} />
+          <aside className={`study-timer-panel ${isStudying ? "active" : ""} ${isStudyPaused ? "paused" : ""}`} aria-label="Contador de horas de estudo">
+            <div className="timer-heading">
+              <span>{timerStatus}</span>
+              <DashboardIcon name="clock" />
+            </div>
+            <strong>{formatTimer(elapsedSeconds)}</strong>
+            <p>{timerDescription}</p>
+            {isStudyPaused ? (
+              <div className="study-pause-alert" role="alert">
+                <span>Tempo para continuar</span>
+                <b>{formatPauseTimer(pauseSecondsRemaining)}</b>
               </div>
-              <div>
-                <span>{card.label}</span>
-                <strong>{card.value}</strong>
-                <p>{card.detail}</p>
-              </div>
-              <button type="button" aria-label={`Abrir ${card.label}`}>
-                <ArrowIcon />
-              </button>
-            </article>
-          ))}
-        </section>
+            ) : null}
+            <div className="timer-total">
+              <span>Horas totais</span>
+              <b>{formatStudyDuration(displayTotalStudySeconds)}</b>
+            </div>
+          </aside>
+        </div>
+      </section>
 
-        {metrics ? (
+      <ToastFeedback feedback={feedback} onClose={() => setFeedback(null)}>
+        <button type="button" onClick={loadDashboard}>
+          Tentar novamente
+        </button>
+      </ToastFeedback>
+
+      <section className="overview-grid" aria-label="Resumo dos estudos">
+        {isLoading ? <LoadingSkeleton variant="cards" count={4} /> : null}
+
+        {!isLoading && overviewCards.map((card) => (
+          <article className="metric-card" key={card.label}>
+            <div className="metric-icon">
+              <DashboardIcon name={card.icon} />
+            </div>
+            <div>
+              <span>{card.label}</span>
+              <strong>{card.value}</strong>
+              <p>{card.detail}</p>
+            </div>
+            <button type="button" aria-label={`Abrir ${card.label}`}>
+              <ArrowIcon />
+            </button>
+          </article>
+        ))}
+      </section>
+
+      {metrics ? (
         <section className="dashboard-panels">
           <article className="activity-panel">
             <div className="panel-heading">
@@ -1195,7 +1284,7 @@ function DashboardHome() {
             </div>
           </article>
         </section>
-        ) : null}
+      ) : null}
     </>
   );
 }
@@ -1223,6 +1312,10 @@ function TasksPage() {
 
     try {
       const tasksData = await apiRequest<StudyTask[]>("/tasks");
+      if (!Array.isArray(tasksData)) {
+        throw new Error("Resposta invalida ao carregar suas missoes.");
+      }
+
       setTasks(tasksData);
       setFeedback(null);
     } catch (error) {
@@ -1563,6 +1656,10 @@ function SubjectsPage() {
 
     try {
       const subjectsData = await apiRequest<Subject[]>("/subjects");
+      if (!Array.isArray(subjectsData)) {
+        throw new Error("Resposta invalida ao carregar seus assuntos.");
+      }
+
       setSubjects(subjectsData);
       setFeedback(null);
     } catch (error) {
@@ -1588,7 +1685,7 @@ function SubjectsPage() {
 
   function openEditModal(subject: Subject) {
     setEditingSubject(subject);
-    setFormValues({ name: subject.name });
+    setFormValues({ name: subject.name, difficulty: subject.difficulty ?? "MEDIUM" });
     setFeedback(null);
     setIsModalOpen(true);
   }
@@ -1609,7 +1706,8 @@ function SubjectsPage() {
     setFeedback(null);
 
     const payload = {
-      name: formValues.name.trim()
+      name: formValues.name.trim(),
+      difficulty: formValues.difficulty
     };
 
     try {
@@ -1699,6 +1797,9 @@ function SubjectsPage() {
               <div className="subject-card-content">
                 <span>Assunto</span>
                 <h2>{subject.name}</h2>
+                <b className={`subject-difficulty tone-${(subject.difficulty ?? "MEDIUM").toLowerCase()}`}>
+                  Dificuldade {getDifficultyLabel(subject.difficulty ?? "MEDIUM")}
+                </b>
                 <time>Atualizado em {formatDate(subject.updatedAt)}</time>
               </div>
 
@@ -1748,12 +1849,25 @@ function SubjectsPage() {
               <input
                 type="text"
                 value={formValues.name}
-                onChange={(event) => setFormValues({ name: event.target.value })}
-                placeholder="Ex: Matematica"
+                onChange={(event) => setFormValues((current) => ({ ...current, name: event.target.value }))}
+                placeholder="Ex: Seguranca da informacao"
                 maxLength={120}
                 required
                 autoFocus
               />
+            </label>
+
+            <label>
+              Dificuldade
+              <select
+                value={formValues.difficulty}
+                onChange={(event) => setFormValues((current) => ({ ...current, difficulty: event.target.value as Difficulty }))}
+                required
+              >
+                <option value="EASY">Facil</option>
+                <option value="MEDIUM">Medio</option>
+                <option value="HARD">Dificil</option>
+              </select>
             </label>
 
             <div className="editor-actions">
@@ -2335,6 +2449,28 @@ function NotesPage() {
     setFeedback(null);
   }
 
+  async function handleImportNoteFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    if (file.type !== "text/plain" && !file.name.toLowerCase().endsWith(".txt")) {
+      setFeedback({ type: "error", message: "Importe apenas arquivos .txt." });
+      return;
+    }
+
+    try {
+      const content = await file.text();
+      setFormValues((current) => ({ ...current, content }));
+      setFeedback({ type: "success", message: "Conteudo importado para a anotacao." });
+    } catch {
+      setFeedback({ type: "error", message: "Nao foi possivel importar o arquivo txt." });
+    }
+  }
+
   function startNewNote() {
     setEditingNoteId(null);
     setFormValues(buildNoteForm(null, fallbackSubjectId));
@@ -2456,7 +2592,7 @@ function NotesPage() {
 
         <button type="button" onClick={startNewNote} disabled={subjects.length === 0}>
           <DashboardIcon name="plus" />
-          Nova note
+          Nova anotacao
         </button>
       </section>
 
@@ -2470,7 +2606,7 @@ function NotesPage() {
             <div className="empty-state">
               <DashboardIcon name="note" />
               <strong>Nenhuma anotacao ainda</strong>
-              <p>Escolha um assunto e crie sua primeira note.</p>
+              <p>Escolha um assunto e crie sua primeira anotacao.</p>
             </div>
           ) : (
             <div className="notes-list">
@@ -2503,10 +2639,10 @@ function NotesPage() {
                   <time>Atualizada em {formatDate(selectedNote.updatedAt)}</time>
                 </div>
                 <div className="note-actions">
-                  <button type="button" onClick={() => startEditing(selectedNote)} aria-label="Editar note">
+                  <button type="button" onClick={() => startEditing(selectedNote)} aria-label="Editar anotacao">
                     <DashboardIcon name="edit" />
                   </button>
-                  <button type="button" onClick={handleDeleteNote} disabled={isDeleting} aria-label="Excluir note">
+                  <button type="button" onClick={handleDeleteNote} disabled={isDeleting} aria-label="Excluir anotacao">
                     <DashboardIcon name="trash" />
                   </button>
                 </div>
@@ -2517,7 +2653,7 @@ function NotesPage() {
           ) : (
             <div className="empty-state detail-empty">
               <DashboardIcon name="note" />
-              <strong>Selecione uma note</strong>
+              <strong>Selecione uma anotacao</strong>
               <p>O detalhe da anotacao aparece aqui.</p>
             </div>
           )}
@@ -2527,7 +2663,7 @@ function NotesPage() {
           <div className="panel-heading compact">
             <h2>
               <DashboardIcon name={editingNoteId ? "edit" : "plus"} />
-              {editingNoteId ? "Editar note" : "Nova note"}
+              {editingNoteId ? "Editar anotacao" : "Nova anotacao"}
             </h2>
           </div>
 
@@ -2561,7 +2697,7 @@ function NotesPage() {
           </label>
 
           <label>
-            Conteudo
+            Conteudo da anotacao
             <textarea
               value={formValues.content}
               onChange={(event) => updateNoteField("content", event.target.value)}
@@ -2569,6 +2705,11 @@ function NotesPage() {
               placeholder="Escreva sua anotacao..."
               required
             />
+          </label>
+
+          <label className="txt-import-control">
+            Importar arquivo .txt
+            <input type="file" accept=".txt,text/plain" onChange={handleImportNoteFile} />
           </label>
 
           <div className="editor-actions">
@@ -2741,7 +2882,7 @@ function clearResetTokenFromUrl() {
   window.history.replaceState({}, document.title, window.location.pathname);
 }
 
-function getErrorMessage(status: number, data: unknown) {
+function getErrorMessage(status: number, data: unknown, context: "app" | "auth" | "login" = "app") {
   if (typeof data === "object" && data !== null && "message" in data) {
     return String((data as { message: unknown }).message);
   }
@@ -2751,7 +2892,9 @@ function getErrorMessage(status: number, data: unknown) {
   }
 
   if (status === 401) {
-    return "Usuario ou senha invalidos.";
+    return context === "login"
+      ? "Usuario ou senha invalidos."
+      : "Sua sessao expirou. Entre novamente para salvar suas alteracoes.";
   }
 
   if (status === 409) {
@@ -2844,6 +2987,11 @@ function DashboardIcon({ name }: { name: string }) {
       <>
         <path d="M8 5v14" />
         <path d="M16 5v14" />
+      </>
+    ),
+    play: (
+      <>
+        <path d="m8 5 11 7-11 7Z" />
       </>
     ),
     user: (

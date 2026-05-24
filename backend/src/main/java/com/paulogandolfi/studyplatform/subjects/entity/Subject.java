@@ -3,6 +3,8 @@ package com.paulogandolfi.studyplatform.subjects.entity;
 import com.paulogandolfi.studyplatform.users.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -32,6 +34,10 @@ public class Subject {
     @Column(nullable = false, length = 120)
     private String name;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private SubjectDifficulty difficulty = SubjectDifficulty.MEDIUM;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -42,8 +48,13 @@ public class Subject {
     }
 
     public Subject(User user, String name) {
+        this(user, name, SubjectDifficulty.MEDIUM);
+    }
+
+    public Subject(User user, String name, SubjectDifficulty difficulty) {
         this.user = user;
         this.name = name;
+        this.difficulty = difficulty == null ? SubjectDifficulty.MEDIUM : difficulty;
     }
 
     @PrePersist
@@ -72,6 +83,14 @@ public class Subject {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public SubjectDifficulty getDifficulty() {
+        return difficulty;
+    }
+
+    public void setDifficulty(SubjectDifficulty difficulty) {
+        this.difficulty = difficulty == null ? SubjectDifficulty.MEDIUM : difficulty;
     }
 
     public LocalDateTime getCreatedAt() {

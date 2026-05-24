@@ -1,6 +1,7 @@
 package com.paulogandolfi.studyplatform.subjects.dto;
 
 import com.paulogandolfi.studyplatform.subjects.entity.Subject;
+import com.paulogandolfi.studyplatform.subjects.entity.SubjectDifficulty;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -8,6 +9,7 @@ import java.util.UUID;
 public record SubjectResponse(
         UUID id,
         String name,
+        SubjectDifficulty difficulty,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
@@ -16,6 +18,7 @@ public record SubjectResponse(
         return new SubjectResponse(
                 subject.getId(),
                 subject.getName(),
+                subject.getDifficulty(),
                 subject.getCreatedAt(),
                 subject.getUpdatedAt()
         );

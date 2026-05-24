@@ -58,12 +58,14 @@ class SubjectControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "name": "  Mathematics  "
+                                  "name": "  Mathematics  ",
+                                  "difficulty": "MEDIUM"
                                 }
                                 """))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").exists())
                 .andExpect(jsonPath("$.name").value("Mathematics"))
+                .andExpect(jsonPath("$.difficulty").value("MEDIUM"))
                 .andExpect(jsonPath("$.createdAt").exists())
                 .andExpect(jsonPath("$.updatedAt").exists());
 
@@ -71,7 +73,8 @@ class SubjectControllerTest {
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].name").value("Mathematics"));
+                .andExpect(jsonPath("$[0].name").value("Mathematics"))
+                .andExpect(jsonPath("$[0].difficulty").value("MEDIUM"));
     }
 
     @Test
@@ -86,11 +89,13 @@ class SubjectControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "name": "Advanced Physics"
+                                  "name": "Advanced Physics",
+                                  "difficulty": "HARD"
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value("Advanced Physics"));
+                .andExpect(jsonPath("$.name").value("Advanced Physics"))
+                .andExpect(jsonPath("$.difficulty").value("HARD"));
 
         mockMvc.perform(put("/subjects/{id}", otherSubject.getId())
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
