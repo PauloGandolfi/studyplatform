@@ -25,6 +25,10 @@ export default defineConfig({
       "/metrics": {
         target: "http://localhost:8081",
         changeOrigin: true
+      },
+      "/study-time": {
+        target: "http://localhost:8081",
+        changeOrigin: true
       }
     }
   }

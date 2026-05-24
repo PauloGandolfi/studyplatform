@@ -78,7 +78,9 @@ class MetricsControllerTest {
         studySessionRepository.save(new StudySession(user, 2, 2, today.minusDays(1)));
         studySessionRepository.save(new StudySession(user, 1, 0, today.minusDays(2)));
         studySessionRepository.save(new StudySession(user, 4, 4, today.minusDays(4)));
+        studySessionRepository.save(new StudySession(user, 0, 0, 5400, today));
         studySessionRepository.save(new StudySession(otherUser, 10, 10, today));
+        studySessionRepository.save(new StudySession(otherUser, 0, 0, 3600, today));
 
         mockMvc.perform(get("/metrics/dashboard")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user)))
@@ -87,6 +89,7 @@ class MetricsControllerTest {
                 .andExpect(jsonPath("$.notes").value(1))
                 .andExpect(jsonPath("$.flashcards").value(2))
                 .andExpect(jsonPath("$.reviewsToday").value(3))
+                .andExpect(jsonPath("$.totalStudySeconds").value(5400))
                 .andExpect(jsonPath("$.accuracyRate").value(80))
                 .andExpect(jsonPath("$.streak").value(3))
                 .andExpect(jsonPath("$.dailyGoal").value(12))
@@ -95,7 +98,7 @@ class MetricsControllerTest {
                 .andExpect(jsonPath("$.weeklyReviews[4].reviews").value(1))
                 .andExpect(jsonPath("$.weeklyReviews[5].reviews").value(2))
                 .andExpect(jsonPath("$.weeklyReviews[6].reviews").value(3))
-                .andExpect(jsonPath("$.recentActivities.length()").value(4));
+                .andExpect(jsonPath("$.recentActivities.length()").value(5));
     }
 
     private User createUser(String name, String email) {

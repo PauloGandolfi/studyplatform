@@ -1,4 +1,4 @@
-import { CSSProperties, FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { CSSProperties, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import spaceImage from "./assets/space-login.png";
 import studyPlatformLogo from "./assets/study-platform-logo.png";
 
@@ -81,12 +81,17 @@ type DashboardMetrics = {
   notes: number;
   flashcards: number;
   reviewsToday: number;
+  totalStudySeconds: number;
   accuracyRate: number;
   streak: number;
   dailyGoal: number;
   dailyProgress: number;
   weeklyReviews: WeeklyReview[];
   recentActivities: RecentActivity[];
+};
+
+type StudyTimeResponse = {
+  totalStudySeconds: number;
 };
 
 type NoteFormValues = {
@@ -195,6 +200,7 @@ const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
 });
 
 const notePreviewLimit = 128;
+const inactivityLimitMs = 15 * 60 * 1000;
 
 function authorizationHeaders() {
   const token = localStorage.getItem("studyplatform_token");
@@ -326,12 +332,42 @@ function formatActivityTime(value: string) {
   return diffDays === 1 ? "1 dia atras" : `${diffDays} dias atras`;
 }
 
+function formatTimer(seconds: number) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainingSeconds = seconds % 60;
+
+  return [hours, minutes, remainingSeconds]
+    .map((value) => String(value).padStart(2, "0"))
+    .join(":");
+}
+
+function formatStudyDuration(seconds: number) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+
+  if (hours > 0 && minutes > 0) {
+    return `${hours}h ${String(minutes).padStart(2, "0")}min`;
+  }
+
+  if (hours > 0) {
+    return `${hours}h`;
+  }
+
+  if (seconds > 0 && minutes === 0) {
+    return "<1min";
+  }
+
+  return `${minutes}min`;
+}
+
 function buildOverviewCards(metrics: DashboardMetrics) {
   return [
     { label: "Assuntos", value: String(metrics.subjects), detail: "assuntos criados", icon: "book" },
     { label: "Anotacoes", value: String(metrics.notes), detail: "anotacoes no total", icon: "note" },
     { label: "Flashcards", value: String(metrics.flashcards), detail: "cartoes criados", icon: "cards" },
-    { label: "Revisoes", value: String(metrics.reviewsToday), detail: "revisados hoje", icon: "calendar" }
+    { label: "Revisoes", value: String(metrics.reviewsToday), detail: "revisados hoje", icon: "calendar" },
+    { label: "Horas", value: formatStudyDuration(metrics.totalStudySeconds), detail: "tempo total estudado", icon: "clock" }
   ];
 }
 
@@ -898,6 +934,10 @@ function DashboardHome() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isStudying, setIsStudying] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [isSavingStudyTime, setIsSavingStudyTime] = useState(false);
+  const lastActivityAtRef = useRef(Date.now());
 
   const loadDashboard = useCallback(async () => {
     setIsLoading(true);
@@ -920,30 +960,122 @@ function DashboardHome() {
     loadDashboard();
   }, [loadDashboard]);
 
+  useEffect(() => {
+    const activityEvents: Array<keyof WindowEventMap> = ["click", "keydown", "mousemove", "scroll", "touchstart"];
+
+    function markActivity() {
+      lastActivityAtRef.current = Date.now();
+    }
+
+    activityEvents.forEach((eventName) => window.addEventListener(eventName, markActivity, { passive: true }));
+
+    return () => {
+      activityEvents.forEach((eventName) => window.removeEventListener(eventName, markActivity));
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isStudying) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      const inactiveFor = Date.now() - lastActivityAtRef.current;
+
+      if (inactiveFor > inactivityLimitMs) {
+        setIsStudying(false);
+        setElapsedSeconds(0);
+        setFeedback({
+          type: "error",
+          message: "Sessao resetada por inatividade. Clique em Comecar a estudar para iniciar de novo."
+        });
+        return;
+      }
+
+      setElapsedSeconds((current) => current + 1);
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [isStudying]);
+
   const overviewCards = metrics ? buildOverviewCards(metrics) : [];
   const weeklyChart = buildWeeklyChart(metrics?.weeklyReviews ?? []);
   const dailyProgress = metrics?.dailyProgress ?? 0;
+  const totalStudySeconds = metrics?.totalStudySeconds ?? 0;
+  const displayTotalStudySeconds = totalStudySeconds + (isStudying ? elapsedSeconds : 0);
+
+  function handleStartStudying() {
+    lastActivityAtRef.current = Date.now();
+    setElapsedSeconds(0);
+    setIsStudying(true);
+    setFeedback(null);
+  }
+
+  async function handlePauseStudying() {
+    if (elapsedSeconds < 1) {
+      setIsStudying(false);
+      setElapsedSeconds(0);
+      return;
+    }
+
+    setIsSavingStudyTime(true);
+    setIsStudying(false);
+    setFeedback(null);
+
+    try {
+      const response = await apiRequest<StudyTimeResponse>("/study-time", {
+        method: "POST",
+        body: JSON.stringify({ durationSeconds: elapsedSeconds })
+      });
+
+      setMetrics((current) => current ? { ...current, totalStudySeconds: response.totalStudySeconds } : current);
+      setElapsedSeconds(0);
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Nao foi possivel salvar o tempo de estudo."
+      });
+      setIsStudying(true);
+    } finally {
+      setIsSavingStudyTime(false);
+    }
+  }
 
   return (
     <>
         <section className="hero-dashboard">
           <img src={spaceImage} alt="" />
           <div className="hero-shade" />
-          <div className="hero-content">
-            <p>Foco do dia</p>
-            <h2>
-              Pequenos passos,
-              <span> grandes conquistas.</span>
-            </h2>
-            <p>
-              {metrics
-                ? `${metrics.streak} dia(s) de sequencia e ${metrics.reviewsToday} revisao(oes) hoje.`
-                : "Mantenha o foco e veja os resultados acontecerem."}
-            </p>
-            <button type="button">
-              <DashboardIcon name="spark" />
-              Comecar a estudar
-            </button>
+          <div className="hero-layout">
+            <div className="hero-content">
+              <p>Foco do dia</p>
+              <h2>
+                Pequenos passos,
+                <span> grandes conquistas.</span>
+              </h2>
+              <p>
+                {metrics
+                  ? `${metrics.streak} dia(s) de sequencia e ${metrics.reviewsToday} revisao(oes) hoje.`
+                  : "Mantenha o foco e veja os resultados acontecerem."}
+              </p>
+              <button type="button" onClick={isStudying ? handlePauseStudying : handleStartStudying} disabled={isSavingStudyTime}>
+                <DashboardIcon name={isStudying ? "pause" : "spark"} />
+                {isSavingStudyTime ? "Salvando..." : isStudying ? "Pausa" : "Comecar a estudar"}
+              </button>
+            </div>
+
+            <aside className={`study-timer-panel ${isStudying ? "active" : ""}`} aria-label="Contador de horas de estudo">
+              <div className="timer-heading">
+                <span>{isStudying ? "Sessao ativa" : "Tempo de estudo"}</span>
+                <DashboardIcon name="clock" />
+              </div>
+              <strong>{formatTimer(elapsedSeconds)}</strong>
+              <p>{isStudying ? "Contando enquanto voce interage com o site." : "Clique em Comecar a estudar para abrir uma nova sessao."}</p>
+              <div className="timer-total">
+                <span>Horas totais</span>
+                <b>{formatStudyDuration(displayTotalStudySeconds)}</b>
+              </div>
+            </aside>
           </div>
         </section>
 
@@ -992,7 +1124,7 @@ function DashboardHome() {
               {metrics.recentActivities.map((activity, index) => (
                 <div className="activity-item" key={`${activity.createdAt}-${index}`}>
                   <div className={`activity-icon tone-${index % 3}`}>
-                    <DashboardIcon name={activity.type === "review" ? "calendar" : "cards"} />
+                    <DashboardIcon name={activity.type === "study" ? "clock" : activity.type === "review" ? "calendar" : "cards"} />
                   </div>
                   <div>
                     <strong>{activity.title}</strong>
@@ -2700,6 +2832,18 @@ function DashboardIcon({ name }: { name: string }) {
         <path d="M8 16v-4" />
         <path d="M12 16V8" />
         <path d="M16 16v-7" />
+      </>
+    ),
+    clock: (
+      <>
+        <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z" />
+        <path d="M12 7v5l3 2" />
+      </>
+    ),
+    pause: (
+      <>
+        <path d="M8 5v14" />
+        <path d="M16 5v14" />
       </>
     ),
     user: (

@@ -37,6 +37,13 @@ public interface StudySessionRepository extends JpaRepository<StudySession, UUID
     long sumCorrectAnswersByUserId(@Param("userId") UUID userId);
 
     @Query("""
+            select coalesce(sum(session.durationSeconds), 0)
+            from StudySession session
+            where session.user.id = :userId
+            """)
+    long sumDurationSecondsByUserId(@Param("userId") UUID userId);
+
+    @Query("""
             select distinct session.sessionDate
             from StudySession session
             where session.user.id = :userId
