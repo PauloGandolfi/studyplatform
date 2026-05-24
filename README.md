@@ -1,62 +1,62 @@
 # Study Platform
 
-A **Study Platform** é uma aplicação web fullstack voltada para organização, revisão e acompanhamento de estudos. O objetivo é centralizar conteúdos, flashcards, tarefas e métricas em uma única plataforma, combinando conceitos de ferramentas como Notion, Anki e Trello.
+A **Study Platform** is a fullstack web application focused on study organization, review, and progress tracking. The goal is to centralize content, flashcards, tasks, and metrics into a single platform, combining concepts from tools such as Notion, Anki, and Trello.
 
 ## Overview
 
-A plataforma será construída com foco em arquitetura limpa, boas práticas de backend, segurança, versionamento de banco de dados e evolução incremental de produto.
+The platform will be built with a strong focus on clean architecture, backend best practices, database versioning, security, and incremental product evolution.
 
-O projeto utiliza:
+The project uses:
 
 - **Java 21**
 - **Spring Boot**
 - **Spring Data JPA**
 - **Flyway**
-- **Supabase** como banco de dados gerenciado
-- **React** no frontend
-- **JWT** para autenticação futura
+- **Supabase** as a managed database
+- **React** on the frontend
+- **JWT** for future authentication
 
-## Objetivos
+## Goals
 
-### Objetivos Técnicos
+### Technical Goals
 
-- Consolidar conhecimentos em Spring Boot
-- Aplicar arquitetura em camadas
-- Evoluir para uma arquitetura limpa ou hexagonal leve
-- Trabalhar com DDD básico
-- Implementar autenticação segura com JWT
-- Criar APIs REST escaláveis e bem estruturadas
-- Versionar o banco de dados com Flyway
+- Consolidate Spring Boot knowledge
+- Apply layered architecture
+- Evolve into a clean or lightweight hexagonal architecture
+- Work with basic DDD concepts
+- Implement secure JWT authentication
+- Build scalable and well-structured REST APIs
+- Version the database using Flyway
 
-### Objetivos de Produto
+### Product Goals
 
-- Centralizar materiais de estudo
-- Melhorar a retenção de conhecimento
-- Aplicar revisão espaçada
-- Acompanhar progresso e métricas
-- Reduzir dispersão entre várias ferramentas
+- Centralize study materials
+- Improve knowledge retention
+- Apply spaced repetition
+- Track progress and metrics
+- Reduce fragmentation across multiple tools
 
-## Arquitetura Geral
+## General Architecture
 
 ### Backend
 
-Arquitetura inicial em camadas:
+Initial layered architecture:
 
 ```text
 Controller -> Service -> Domain/Entity -> Repository
 ```
 
-Responsabilidades:
+Responsibilities:
 
-- **Controller**: entrada HTTP e exposição da API
-- **Service**: regras de negócio
-- **Entity/Domain**: representação do domínio
-- **Repository**: acesso aos dados
-- **DTO**: entrada e saída de dados
-- **Mapper**: conversão entre DTOs e entidades
-- **Security**: autenticação e autorização
+- **Controller**: HTTP entry point and API exposure
+- **Service**: business rules
+- **Entity/Domain**: domain representation
+- **Repository**: data access layer
+- **DTO**: input and output data
+- **Mapper**: conversion between DTOs and entities
+- **Security**: authentication and authorization
 
-### Estrutura Esperada do Backend
+### Expected Backend Structure
 
 ```text
 com.paulogandolfi.studyplatform
@@ -76,17 +76,17 @@ com.paulogandolfi.studyplatform
 └── util
 ```
 
-## Banco de Dados
+## Database
 
-O projeto utiliza **Supabase** como banco gerenciado compatível com PostgreSQL.
+The project uses **Supabase** as a managed PostgreSQL-compatible database.
 
-A conexão é feita através do **Supabase Shared Pooler**, recomendado para redes IPv4:
+The connection is established through the **Supabase Shared Pooler**, recommended for IPv4 networks:
 
 ```text
 jdbc:postgresql://aws-1-us-west-2.pooler.supabase.com:6543/postgres
 ```
 
-Configuração recomendada via variáveis de ambiente:
+Recommended configuration using environment variables:
 
 ```yaml
 spring:
@@ -96,7 +96,7 @@ spring:
     password: ${DATABASE_PASSWORD}
 ```
 
-Exemplo local:
+Local example:
 
 ```bash
 export DATABASE_URL="jdbc:postgresql://aws-1-us-west-2.pooler.supabase.com:6543/postgres"
@@ -104,25 +104,25 @@ export DATABASE_USERNAME="postgres.PROJECT_ID"
 export DATABASE_PASSWORD="your-password"
 ```
 
-> Nunca commitar senhas, tokens ou strings sensíveis no repositório.
+> Never commit passwords, tokens, or sensitive strings to the repository.
 
-## Versionamento do Banco
+## Database Versioning
 
-O projeto utiliza **Flyway** para versionamento do banco de dados.
+The project uses **Flyway** for database versioning.
 
-As migrations ficam em:
+Migrations are located at:
 
 ```text
 backend/src/main/resources/db/migration
 ```
 
-Migration inicial criada:
+Initial migration created:
 
 ```text
 V1__create_users_table.sql
 ```
 
-Ela cria o schema da aplicação e a tabela de usuários:
+It creates the application schema and the users table:
 
 ```sql
 CREATE SCHEMA IF NOT EXISTS studyplatform;
@@ -137,13 +137,13 @@ CREATE TABLE studyplatform.users (
 );
 ```
 
-## Domínio Inicial
+## Initial Domain
 
 ### User
 
-Representa o usuário principal da plataforma.
+Represents the main platform user.
 
-Campos:
+Fields:
 
 ```text
 id          UUID
@@ -154,27 +154,27 @@ createdAt   TIMESTAMP
 updatedAt   TIMESTAMP
 ```
 
-Regras:
+Rules:
 
-- Email deve ser único
-- Senha deverá ser criptografada com BCrypt
-- Usuário será dono dos conteúdos, tarefas, sessões e flashcards
+- Email must be unique
+- Password must be encrypted using BCrypt
+- The user will own content, tasks, sessions, and flashcards
 
-## Entidade Implementada
+## Implemented Entity
 
-Entidade JPA criada:
+Created JPA entity:
 
 ```text
 backend/src/main/java/com/paulogandolfi/studyplatform/users/User.java
 ```
 
-Repository criado:
+Created repository:
 
 ```text
 backend/src/main/java/com/paulogandolfi/studyplatform/users/UserRepository.java
 ```
 
-O repository possui suporte inicial para:
+The repository currently supports:
 
 ```java
 Optional<User> findByEmail(String email);
@@ -182,15 +182,15 @@ Optional<User> findByEmail(String email);
 boolean existsByEmail(String email);
 ```
 
-## Configuração da Aplicação
+## Application Configuration
 
-Arquivo principal:
+Main file:
 
 ```text
 backend/src/main/resources/application.yaml
 ```
 
-Estrutura recomendada:
+Recommended structure:
 
 ```yaml
 server:
@@ -218,15 +218,15 @@ spring:
     enabled: true
 ```
 
-## Como Rodar o Backend
+## Running the Backend
 
-Acesse a pasta do backend:
+Access the backend folder:
 
 ```bash
 cd backend
 ```
 
-Configure as variáveis de ambiente:
+Configure the environment variables:
 
 ```bash
 export DATABASE_URL="jdbc:postgresql://aws-1-us-west-2.pooler.supabase.com:6543/postgres"
@@ -234,21 +234,21 @@ export DATABASE_USERNAME="postgres.PROJECT_ID"
 export DATABASE_PASSWORD="your-password"
 ```
 
-Execute o projeto:
+Run the project:
 
 ```bash
 ./mvnw spring-boot:run
 ```
 
-A aplicação ficará disponível em:
+The application will be available at:
 
 ```text
 http://localhost:8081
 ```
 
-## Validação do Banco no Supabase
+## Database Validation on Supabase
 
-Para confirmar se a tabela foi criada:
+To confirm the table was created:
 
 ```sql
 SELECT table_schema, table_name
@@ -257,13 +257,13 @@ WHERE table_name = 'users'
 ORDER BY table_schema;
 ```
 
-Resultado esperado:
+Expected result:
 
 ```text
 studyplatform | users
 ```
 
-## Modelagem Planejada
+## Planned Modeling
 
 ### Subject
 
@@ -318,7 +318,7 @@ due_date
 user_id
 ```
 
-## Relacionamentos
+## Relationships
 
 ```text
 User 1:N Subject
@@ -328,21 +328,21 @@ User 1:N StudyTask
 User 1:N StudySession
 ```
 
-## Sistema de Revisão
+## Review System
 
-Regra inicial de revisão espaçada:
+Initial spaced repetition rule:
 
 ```text
-Se acertar:
+If correct:
   reviewInterval = reviewInterval * 2
-  nextReviewDate = hoje + reviewInterval
+  nextReviewDate = today + reviewInterval
 
-Se errar:
+If incorrect:
   reviewInterval = 1
-  nextReviewDate = amanhã
+  nextReviewDate = tomorrow
 ```
 
-Consulta base para cards pendentes:
+Base query for pending cards:
 
 ```sql
 SELECT *
@@ -350,7 +350,7 @@ FROM studyplatform.flashcards
 WHERE next_review_date <= CURRENT_DATE;
 ```
 
-## Endpoints Planejados
+## Planned Endpoints
 
 ### Auth
 
@@ -412,9 +412,9 @@ GET /metrics/dashboard
 
 ## Frontend
 
-O frontend será desenvolvido em React, com organização baseada em features.
+The frontend will be developed using React, organized by features.
 
-Estrutura planejada:
+Planned structure:
 
 ```text
 src/
@@ -427,7 +427,7 @@ src/
 └── utils
 ```
 
-Páginas previstas:
+Planned pages:
 
 - Login
 - Register
@@ -439,43 +439,43 @@ Páginas previstas:
 - Tasks
 - Metrics
 
-## Segurança
+## Security
 
-Planejamento de segurança:
+Security planning:
 
-- Autenticação stateless com JWT
-- Senhas criptografadas com BCrypt
-- Proteção de endpoints por usuário autenticado
-- Bloqueio de acesso a dados de outros usuários
-- Validação de entrada com Bean Validation
+- Stateless authentication using JWT
+- Password encryption with BCrypt
+- Endpoint protection by authenticated user
+- Access blocking to other users' data
+- Input validation using Bean Validation
 
-## Testes
+## Tests
 
 ### Backend
 
-- Testes unitários para services
-- Testes de integração para controllers
-- Testes de repository
-- Validação de migrations com Flyway
+- Unit tests for services
+- Integration tests for controllers
+- Repository tests
+- Migration validation with Flyway
 
 ### Frontend
 
-- Testes de componentes
-- Testes de fluxo de autenticação
-- Testes de fluxo de revisão
+- Component tests
+- Authentication flow tests
+- Review flow tests
 
 ## Roadmap
 
-### Fase 1 — Fundação
+### Phase 1 — Foundation
 
-- Setup Spring Boot
-- Configuração Supabase
-- Configuração Flyway
-- Migration inicial
-- Entidade User
+- Spring Boot setup
+- Supabase configuration
+- Flyway configuration
+- Initial migration
+- User entity
 - UserRepository
 
-### Fase 2 — Autenticação
+### Phase 2 — Authentication
 
 - Register
 - Login
@@ -483,56 +483,56 @@ Planejamento de segurança:
 - JWT
 - SecurityConfig
 
-### Fase 3 — Organização
+### Phase 3 — Organization
 
 - Subject CRUD
 - Note CRUD
-- Relacionamento com usuário
+- User relationship
 
-### Fase 4 — Revisão
+### Phase 4 — Review
 
 - Flashcard CRUD
-- Revisão espaçada
-- Endpoint de revisão
-- Atualização de intervalo
+- Spaced repetition
+- Review endpoint
+- Interval update
 
-### Fase 5 — Frontend
+### Phase 5 — Frontend
 
-- Setup React
+- React setup
 - Login/Register
 - Dashboard
-- CRUDs principais
+- Main CRUDs
 
-### Fase 6 — Métricas
+### Phase 6 — Metrics
 
 - StudySession
-- Cards revisados por dia
-- Taxa de acerto
-- Streak de estudos
+- Reviewed cards per day
+- Accuracy rate
+- Study streak
 
-### Fase 7 — Avançado
+### Phase 7 — Advanced
 
-- Algoritmo SM-2
-- Editor rich text
-- Upload de PDF
-- Geração de flashcards com IA
+- SM-2 algorithm
+- Rich text editor
+- PDF upload
+- AI flashcard generation
 - Deploy
-- CI/CD com GitHub Actions
+- CI/CD with GitHub Actions
 
-## Status Atual
+## Current Status
 
-Implementado até o momento:
+Implemented so far:
 
-- Backend Spring Boot configurado
-- Supabase conectado via shared pooler
-- Flyway habilitado
-- Migration inicial criada
-- Schema `studyplatform` criado
-- Tabela `users` criada
-- Entidade `User` criada
-- Repository `UserRepository` criado
-- Testes executando com sucesso
+- Spring Boot backend configured
+- Supabase connected via shared pooler
+- Flyway enabled
+- Initial migration created
+- `studyplatform` schema created
+- `users` table created
+- `User` entity created
+- `UserRepository` created
+- Tests running successfully
 
-## Conclusão
+## Conclusion
 
-A Study Platform foi planejada para evoluir como um produto real, combinando organização, memorização e acompanhamento de progresso. O projeto serve como base prática para consolidar habilidades de desenvolvimento fullstack, arquitetura backend, segurança, banco de dados e experiência de usuário.
+The Study Platform was designed to evolve as a real product, combining organization, memorization, and progress tracking. The project serves as a practical foundation for consolidating fullstack development skills, backend architecture, security, databases, and user experience.

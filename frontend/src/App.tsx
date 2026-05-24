@@ -82,12 +82,17 @@ type DashboardMetrics = {
   notes: number;
   flashcards: number;
   reviewsToday: number;
+  totalStudySeconds: number;
   accuracyRate: number;
   streak: number;
   dailyGoal: number;
   dailyProgress: number;
   weeklyReviews: WeeklyReview[];
   recentActivities: RecentActivity[];
+};
+
+type StudyTimeResponse = {
+  totalStudySeconds: number;
 };
 
 type NoteFormValues = {
@@ -364,7 +369,8 @@ function buildOverviewCards(metrics: DashboardMetrics) {
     { label: "Assuntos", value: String(metrics.subjects), detail: "assuntos criados", icon: "book" },
     { label: "Anotacoes", value: String(metrics.notes), detail: "anotacoes no total", icon: "note" },
     { label: "Flashcards", value: String(metrics.flashcards), detail: "cartoes criados", icon: "cards" },
-    { label: "Revisoes", value: String(metrics.reviewsToday), detail: "revisados hoje", icon: "calendar" }
+    { label: "Revisoes", value: String(metrics.reviewsToday), detail: "revisados hoje", icon: "calendar" },
+    { label: "Horas", value: formatStudyDuration(metrics.totalStudySeconds), detail: "tempo total estudado", icon: "clock" }
   ];
 }
 
@@ -1207,7 +1213,7 @@ function DashboardHome() {
               {metrics.recentActivities.map((activity, index) => (
                 <div className="activity-item" key={`${activity.createdAt}-${index}`}>
                   <div className={`activity-icon tone-${index % 3}`}>
-                    <DashboardIcon name={activity.type === "review" ? "calendar" : "cards"} />
+                    <DashboardIcon name={activity.type === "study" ? "clock" : activity.type === "review" ? "calendar" : "cards"} />
                   </div>
                   <div>
                     <strong>{activity.title}</strong>

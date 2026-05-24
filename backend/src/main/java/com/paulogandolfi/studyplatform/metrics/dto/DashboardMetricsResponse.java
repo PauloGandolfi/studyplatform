@@ -7,6 +7,7 @@ public record DashboardMetricsResponse(
         long notes,
         long flashcards,
         long reviewsToday,
+        long totalStudySeconds,
         int accuracyRate,
         int streak,
         int dailyGoal,

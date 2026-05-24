@@ -56,6 +56,7 @@ public class MetricsService {
                 noteRepository.countBySubject_User_Id(userId),
                 flashcardRepository.countBySubject_User_Id(userId),
                 reviewsToday,
+                studySessionRepository.sumDurationSecondsByUserId(userId),
                 accuracyRate,
                 calculateStreak(userId, today),
                 DAILY_GOAL,
@@ -112,6 +113,16 @@ public class MetricsService {
     }
 
     private RecentActivityResponse toRecentActivity(StudySession session) {
+        if (session.getDurationSeconds() > 0 && session.getCardsReviewed() == 0) {
+            return new RecentActivityResponse(
+                    "Sessao de estudo registrada",
+                    formatStudyDuration(session.getDurationSeconds()),
+                    "study",
+                    session.getSessionDate(),
+                    session.getCreatedAt()
+            );
+        }
+
         String title = session.getCardsReviewed() == 1
                 ? "1 flashcard revisado"
                 : "%d flashcards revisados".formatted(session.getCardsReviewed());
@@ -131,5 +142,20 @@ public class MetricsService {
     private static String dayLabel(LocalDate date) {
         String label = date.getDayOfWeek().getDisplayName(TextStyle.SHORT, PT_BR).replace(".", "");
         return label.substring(0, 1).toUpperCase(PT_BR) + label.substring(1);
+    }
+
+    private static String formatStudyDuration(int seconds) {
+        int hours = seconds / 3600;
+        int minutes = (seconds % 3600) / 60;
+
+        if (hours > 0 && minutes > 0) {
+            return "%dh %02dmin".formatted(hours, minutes);
+        }
+
+        if (hours > 0) {
+            return "%dh".formatted(hours);
+        }
+
+        return "%dmin".formatted(Math.max(1, minutes));
     }
 }

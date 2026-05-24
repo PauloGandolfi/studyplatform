@@ -35,6 +35,9 @@ public class StudySession {
     @Column(name = "correct_answers", nullable = false)
     private Integer correctAnswers;
 
+    @Column(name = "duration_seconds", nullable = false)
+    private Integer durationSeconds;
+
     @Column(name = "session_date", nullable = false)
     private LocalDate sessionDate;
 
@@ -45,9 +48,14 @@ public class StudySession {
     }
 
     public StudySession(User user, Integer cardsReviewed, Integer correctAnswers, LocalDate sessionDate) {
+        this(user, cardsReviewed, correctAnswers, 0, sessionDate);
+    }
+
+    public StudySession(User user, Integer cardsReviewed, Integer correctAnswers, Integer durationSeconds, LocalDate sessionDate) {
         this.user = user;
         this.cardsReviewed = cardsReviewed;
         this.correctAnswers = correctAnswers;
+        this.durationSeconds = durationSeconds;
         this.sessionDate = sessionDate;
     }
 
@@ -70,6 +78,10 @@ public class StudySession {
 
     public Integer getCorrectAnswers() {
         return correctAnswers;
+    }
+
+    public Integer getDurationSeconds() {
+        return durationSeconds;
     }
 
     public LocalDate getSessionDate() {
