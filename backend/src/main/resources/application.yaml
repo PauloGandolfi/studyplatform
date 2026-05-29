@@ -10,6 +10,11 @@ app:
     client-id: ${GOOGLE_CLIENT_ID:}
   mail:
     from: ${MAIL_FROM:no-reply@studyplatform.local}
+  ai:
+    gemini:
+      api-key: ${GEMINI_API_KEY:}
+      model: ${GEMINI_MODEL:gemini-2.5-flash}
+      base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta/models}
 
 spring:
   application:
