@@ -17,6 +17,11 @@ app:
       base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta/models}
 
 spring:
+  config:
+    import:
+      - optional:file:.env[.properties]
+      - optional:file:../.env[.properties]
+
   application:
     name: studyplatform-api
 
@@ -25,9 +30,9 @@ spring:
       enabled: false
 
   datasource:
-    url: jdbc:postgresql://aws-1-us-west-2.pooler.supabase.com:6543/postgres?prepareThreshold=0
-    username: postgres.taulohcsqlvzdgougyky
-    password: 32258953@@Paulo
+    url: ${SPRING_DATASOURCE_URL:${DATABASE_URL:jdbc:postgresql://aws-1-us-west-2.pooler.supabase.com:6543/postgres?prepareThreshold=0}}
+    username: ${SPRING_DATASOURCE_USERNAME:${DATABASE_USERNAME:postgres.PROJECT_ID}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${DATABASE_PASSWORD:}}
 
   jpa:
     hibernate:

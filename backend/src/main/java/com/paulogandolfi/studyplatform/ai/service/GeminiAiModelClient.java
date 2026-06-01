@@ -30,8 +30,7 @@ public class GeminiAiModelClient implements AiModelClient {
     public GeminiAiModelClient(
             @Value("${app.ai.gemini.api-key}") String apiKey,
             @Value("${app.ai.gemini.model}") String model,
-            @Value("${app.ai.gemini.base-url}") String baseUrl,
-            ObjectMapper objectMapper
+            @Value("${app.ai.gemini.base-url}") String baseUrl
     ) {
         this.apiKey = apiKey;
         this.model = model;
@@ -40,7 +39,7 @@ public class GeminiAiModelClient implements AiModelClient {
                 .defaultHeader("x-goog-api-key", apiKey)
                 .defaultHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)
                 .build();
-        this.objectMapper = objectMapper;
+        this.objectMapper = new ObjectMapper();
     }
 
     @Override

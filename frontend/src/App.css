@@ -450,6 +450,9 @@ textarea {
 .mission-section-heading button:hover:not(:disabled),
 .subjects-toolbar button:hover:not(:disabled),
 .flashcards-toolbar button:hover:not(:disabled),
+.professor-command-panel button:hover:not(:disabled),
+.professor-side-panel button:hover:not(:disabled),
+.professor-suggestions-panel .panel-heading button:hover:not(:disabled),
 .notes-toolbar button:hover:not(:disabled),
 .save-note-button:hover:not(:disabled),
 .hero-content button:hover:not(:disabled),
@@ -1991,6 +1994,272 @@ textarea {
   overflow-wrap: anywhere;
 }
 
+.professor-page {
+  display: grid;
+  gap: 20px;
+}
+
+.professor-hero {
+  min-height: 190px;
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  align-items: center;
+  gap: 22px;
+  padding: clamp(22px, 3vw, 32px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-panel);
+  background:
+    radial-gradient(circle at 92% 8%, rgba(85, 216, 141, 0.16), transparent 14rem),
+    radial-gradient(circle at 12% 0%, rgba(126, 219, 255, 0.18), transparent 16rem),
+    rgba(255, 255, 255, 0.045);
+  box-shadow: var(--shadow-panel);
+  animation: panel-in 220ms ease both;
+}
+
+.professor-mark {
+  width: 78px;
+  height: 78px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  color: #fff;
+  background: linear-gradient(135deg, #7842ff, #31aff3);
+  box-shadow: 0 18px 36px rgba(63, 113, 255, 0.34);
+}
+
+.professor-mark svg {
+  width: 38px;
+  height: 38px;
+}
+
+.professor-hero span,
+.professor-context-card span,
+.professor-message span {
+  color: #79d8ff;
+  font-size: 0.76rem;
+  font-weight: 950;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.professor-hero h2 {
+  margin: 8px 0 8px;
+  color: #fff;
+  font-size: clamp(2rem, 4vw, 3.4rem);
+  line-height: 1;
+  font-weight: 950;
+}
+
+.professor-hero p {
+  max-width: 680px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.professor-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.42fr) minmax(280px, 0.58fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.professor-results-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.68fr) minmax(0, 1.32fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.professor-command-panel,
+.professor-side-panel,
+.professor-chat-panel,
+.professor-suggestions-panel {
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: var(--radius-panel);
+  background:
+    radial-gradient(circle at 16% 0%, rgba(54, 178, 255, 0.12), transparent 12rem),
+    rgba(255, 255, 255, 0.045);
+  box-shadow: var(--shadow-panel);
+  animation: panel-in 220ms ease both;
+}
+
+.professor-command-panel label,
+.professor-side-panel label {
+  display: grid;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.88rem;
+  font-weight: 850;
+}
+
+.professor-command-panel input,
+.professor-command-panel select,
+.professor-command-panel textarea,
+.professor-side-panel input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  outline: 0;
+  border-radius: 14px;
+  padding: 0 14px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.professor-command-panel input,
+.professor-command-panel select,
+.professor-side-panel input {
+  min-height: 50px;
+}
+
+.professor-command-panel textarea {
+  min-height: 220px;
+  padding: 14px;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.professor-command-panel select option {
+  color: #141628;
+}
+
+.professor-command-panel input::placeholder,
+.professor-command-panel textarea::placeholder,
+.professor-side-panel input::placeholder {
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.professor-subject-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px;
+  gap: 12px;
+}
+
+.professor-primary-button,
+.professor-side-panel button,
+.professor-suggestions-panel .panel-heading button {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 14px;
+  padding: 0 18px;
+  color: #fff;
+  background: linear-gradient(135deg, #7842ff, #31aff3);
+  font-weight: 950;
+  box-shadow: 0 14px 32px rgba(63, 113, 255, 0.28);
+}
+
+.professor-primary-button:disabled,
+.professor-side-panel button:disabled,
+.professor-suggestions-panel .panel-heading button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.professor-side-panel button {
+  width: 100%;
+}
+
+.professor-context-card {
+  display: grid;
+  gap: 7px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.professor-context-card strong {
+  color: #fff;
+  font-size: 1.05rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.professor-context-card p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.68);
+}
+
+.professor-messages {
+  display: grid;
+  gap: 12px;
+  max-height: 470px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.professor-message {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.professor-message.user {
+  border-color: rgba(126, 219, 255, 0.18);
+  background: rgba(54, 178, 255, 0.08);
+}
+
+.professor-message p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.78);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.professor-suggestion-list {
+  display: grid;
+  gap: 12px;
+}
+
+.professor-suggestion-card {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.professor-suggestion-card input {
+  width: 18px;
+  height: 18px;
+  margin-top: 4px;
+  accent-color: #55d88d;
+}
+
+.professor-suggestion-card h3 {
+  margin: 12px 0 8px;
+  color: #fff;
+  font-size: 1.05rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.professor-suggestion-card p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.74);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.professor-empty {
+  min-height: 360px;
+}
+
 .review-session-page {
   max-width: 980px;
 }
@@ -2494,6 +2763,11 @@ textarea {
     grid-template-columns: minmax(260px, 0.88fr) minmax(0, 1.12fr);
   }
 
+  .professor-grid,
+  .professor-results-grid {
+    grid-template-columns: 1fr;
+  }
+
   .note-editor-panel {
     grid-column: 1 / -1;
   }
@@ -2636,6 +2910,15 @@ textarea {
 
   .review-session-page {
     max-width: none;
+  }
+
+  .professor-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .professor-mark {
+    width: 64px;
+    height: 64px;
   }
 }
 
@@ -2891,6 +3174,21 @@ textarea {
 
   .review-rating-actions {
     grid-template-columns: 1fr;
+  }
+
+  .professor-command-panel,
+  .professor-side-panel,
+  .professor-chat-panel,
+  .professor-suggestions-panel {
+    padding: 18px;
+  }
+
+  .professor-subject-row {
+    grid-template-columns: 1fr;
+  }
+
+  .professor-suggestions-panel .panel-heading button {
+    width: 100%;
   }
 }
 
