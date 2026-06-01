@@ -4,7 +4,7 @@ import studyPlatformLogo from "./assets/study-platform-logo.png";
 
 type AuthMode = "login" | "register" | "forgot" | "reset";
 type AppView = "auth" | "home";
-type HomeSection = "dashboard" | "tasks" | "subjects" | "notes" | "flashcards" | "reviews" | "stats" | "profile" | "settings";
+type HomeSection = "dashboard" | "tasks" | "subjects" | "notes" | "flashcards" | "professor" | "reviews" | "stats" | "profile" | "settings";
 
 type Feedback = {
   type: "success" | "error";
@@ -50,6 +50,18 @@ type Flashcard = {
   nextReviewDate: string;
   createdAt: string;
   updatedAt: string;
+};
+
+type AiFlashcardSuggestion = {
+  question: string;
+  answer: string;
+  difficulty: Difficulty;
+};
+
+type ProfessorMessage = {
+  id: number;
+  role: "user" | "professor";
+  text: string;
 };
 
 type StudyTask = {
@@ -139,6 +151,7 @@ const navItems: Array<{
     { label: "Assuntos", icon: "book", section: "subjects" },
     { label: "Anotações", icon: "note", section: "notes" },
     { label: "Flashcards", icon: "cards", section: "flashcards" },
+    { label: "Professor", icon: "professor", section: "professor" },
     { label: "Revisoes", icon: "calendar", section: "reviews" },
     { label: "Estatisticas", icon: "chart", section: "stats" },
     { label: "Perfil", icon: "user", section: "profile" },
@@ -176,6 +189,7 @@ const placeholderTitles: Record<HomeSection, string> = {
   subjects: "Assuntos",
   notes: "Anotações",
   flashcards: "Flashcards",
+  professor: "Professor",
   reviews: "Revisoes",
   stats: "Estatisticas",
   profile: "Perfil",
@@ -188,6 +202,7 @@ const placeholderCopy: Record<HomeSection, string> = {
   subjects: "",
   notes: "",
   flashcards: "Flashcards entram depois que suas anotacoes estiverem organizadas.",
+  professor: "Use a IA para criar assuntos e transformar conteudo em flashcards.",
   reviews: "Revisoes vao usar seu progresso e seus cards para montar a fila diaria.",
   stats: "Estatisticas vao consolidar tempo de estudo, revisoes e criacao de conteudo.",
   profile: "Perfil vai reunir dados da conta e preferencias de estudo.",
@@ -471,6 +486,36 @@ function getSectionLabel(section: HomeSection) {
 
 function confirmDelete(itemLabel: string) {
   return window.confirm(`Tem certeza que deseja excluir ${itemLabel}? Esta acao nao pode ser desfeita.`);
+}
+
+function parseCreateSubjectCommand(command: string) {
+  const normalized = command.trim();
+  const match = normalized.match(/^(crie|criar|cria|adicione|adicionar)\s+(um\s+|uma\s+)?(assunto|materia)\s+(.+)$/i);
+
+  if (!match) {
+    return null;
+  }
+
+  return match[4].replace(/[.!?]+$/g, "").trim();
+}
+
+function getProfessorPromptText(prompt: string, content: string) {
+  const compactPrompt = prompt.trim();
+  const compactContent = content.trim();
+
+  if (compactPrompt && compactContent) {
+    return `${compactPrompt}\n\n${compactContent}`;
+  }
+
+  return compactContent || compactPrompt;
+}
+
+function clampMaxCards(value: number) {
+  if (!Number.isFinite(value)) {
+    return 8;
+  }
+
+  return Math.min(20, Math.max(1, Math.round(value)));
 }
 
 function ToastFeedback({
@@ -940,6 +985,8 @@ function HomePage({
           <NotesPage />
         ) : currentSection === "flashcards" ? (
           <FlashcardsPage />
+        ) : currentSection === "professor" ? (
+          <ProfessorPage />
         ) : currentSection === "reviews" ? (
           <ReviewSessionPage />
         ) : currentSection === "dashboard" ? (
@@ -2204,6 +2251,405 @@ function FlashcardsPage() {
   );
 }
 
+function ProfessorPage() {
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [selectedSubjectId, setSelectedSubjectId] = useState("");
+  const [newSubjectName, setNewSubjectName] = useState("");
+  const [prompt, setPrompt] = useState("Crie flashcards sobre este conteudo");
+  const [content, setContent] = useState("");
+  const [maxCards, setMaxCards] = useState(8);
+  const [suggestions, setSuggestions] = useState<AiFlashcardSuggestion[]>([]);
+  const [selectedIndexes, setSelectedIndexes] = useState<number[]>([]);
+  const [messages, setMessages] = useState<ProfessorMessage[]>([
+    {
+      id: 1,
+      role: "professor",
+      text: "Eu sou o Professor. Posso criar assuntos e gerar flashcards a partir do seu conteudo."
+    }
+  ]);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isWorking, setIsWorking] = useState(false);
+  const [isSavingCards, setIsSavingCards] = useState(false);
+
+  const selectedSubject = subjects.find((subject) => subject.id === selectedSubjectId) ?? null;
+  const hasSuggestions = suggestions.length > 0;
+
+  const loadProfessorData = useCallback(async () => {
+    setIsLoading(true);
+
+    try {
+      const subjectsData = await apiRequest<Subject[]>("/subjects");
+      setSubjects(subjectsData);
+      setSelectedSubjectId((current) =>
+        current && subjectsData.some((subject) => subject.id === current) ? current : subjectsData[0]?.id ?? ""
+      );
+      setFeedback(null);
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Nao foi possivel carregar os assuntos."
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadProfessorData();
+  }, [loadProfessorData]);
+
+  function addProfessorMessage(role: ProfessorMessage["role"], text: string) {
+    setMessages((current) => [
+      ...current,
+      {
+        id: Date.now() + current.length,
+        role,
+        text
+      }
+    ]);
+  }
+
+  function toggleSuggestion(index: number) {
+    setSelectedIndexes((current) =>
+      current.includes(index) ? current.filter((item) => item !== index) : [...current, index]
+    );
+  }
+
+  async function createSubject(name: string) {
+    const savedSubject = await apiRequest<Subject>("/subjects", {
+      method: "POST",
+      body: JSON.stringify({
+        name,
+        difficulty: "MEDIUM"
+      })
+    });
+
+    setSubjects((current) => [savedSubject, ...current]);
+    setSelectedSubjectId(savedSubject.id);
+    return savedSubject;
+  }
+
+  async function handleProfessorCommand(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const trimmedPrompt = prompt.trim();
+    const subjectNameFromCommand = parseCreateSubjectCommand(trimmedPrompt);
+
+    if (!trimmedPrompt && !content.trim()) {
+      setFeedback({ type: "error", message: "Escreva um pedido ou cole um conteudo para o Professor trabalhar." });
+      return;
+    }
+
+    setIsWorking(true);
+    setFeedback(null);
+    addProfessorMessage("user", trimmedPrompt || "Gerar flashcards com o conteudo informado.");
+
+    try {
+      if (subjectNameFromCommand) {
+        const savedSubject = await createSubject(subjectNameFromCommand);
+        setNewSubjectName("");
+        addProfessorMessage("professor", `Assunto "${savedSubject.name}" criado. Agora voce pode colar um conteudo para gerar flashcards.`);
+        setFeedback({ type: "success", message: "Assunto criado pelo Professor." });
+        return;
+      }
+
+      const activeSubject = selectedSubjectId
+        ? subjects.find((subject) => subject.id === selectedSubjectId) ?? null
+        : null;
+
+      if (!activeSubject) {
+        setFeedback({ type: "error", message: "Escolha ou crie um assunto antes de gerar flashcards." });
+        addProfessorMessage("professor", "Escolha um assunto primeiro. Eu preciso dele para organizar os flashcards.");
+        return;
+      }
+
+      const sourceContent = getProfessorPromptText(trimmedPrompt, content);
+
+      if (!sourceContent) {
+        setFeedback({ type: "error", message: "Cole um conteudo ou escreva um pedido para gerar os flashcards." });
+        return;
+      }
+
+      const response = await apiRequest<{ flashcards: AiFlashcardSuggestion[] }>("/ai/flashcards/generate", {
+        method: "POST",
+        body: JSON.stringify({
+          subjectId: activeSubject.id,
+          content: sourceContent,
+          maxCards
+        })
+      });
+
+      const nextSuggestions = response.flashcards ?? [];
+      setSuggestions(nextSuggestions);
+      setSelectedIndexes(nextSuggestions.map((_, index) => index));
+      addProfessorMessage(
+        "professor",
+        nextSuggestions.length > 0
+          ? `Gerei ${nextSuggestions.length} sugestao(oes) para ${activeSubject.name}. Revise e salve as melhores.`
+          : "Nao encontrei conteudo suficiente para gerar flashcards bons."
+      );
+      setFeedback({ type: "success", message: "Sugestoes geradas pelo Professor." });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Nao foi possivel conversar com o Professor.";
+      setFeedback({ type: "error", message });
+      addProfessorMessage("professor", message);
+    } finally {
+      setIsWorking(false);
+    }
+  }
+
+  async function handleCreateSubject() {
+    const name = newSubjectName.trim();
+
+    if (!name) {
+      setFeedback({ type: "error", message: "Informe o nome do assunto." });
+      return;
+    }
+
+    setIsWorking(true);
+    setFeedback(null);
+
+    try {
+      const savedSubject = await createSubject(name);
+      setNewSubjectName("");
+      addProfessorMessage("professor", `Assunto "${savedSubject.name}" criado.`);
+      setFeedback({ type: "success", message: "Assunto criado." });
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Nao foi possivel criar o assunto."
+      });
+    } finally {
+      setIsWorking(false);
+    }
+  }
+
+  async function handleSaveSuggestions() {
+    if (!selectedSubjectId) {
+      setFeedback({ type: "error", message: "Escolha um assunto antes de salvar os flashcards." });
+      return;
+    }
+
+    const selectedSuggestions = [...selectedIndexes]
+      .sort((left, right) => left - right)
+      .map((index) => suggestions[index])
+      .filter(Boolean);
+
+    if (selectedSuggestions.length === 0) {
+      setFeedback({ type: "error", message: "Selecione pelo menos uma sugestao para salvar." });
+      return;
+    }
+
+    setIsSavingCards(true);
+    setFeedback(null);
+
+    try {
+      await Promise.all(
+        selectedSuggestions.map((suggestion) =>
+          apiRequest<Flashcard>("/flashcards", {
+            method: "POST",
+            body: JSON.stringify({
+              subjectId: selectedSubjectId,
+              question: suggestion.question,
+              answer: suggestion.answer,
+              difficulty: suggestion.difficulty
+            })
+          })
+        )
+      );
+
+      setSuggestions([]);
+      setSelectedIndexes([]);
+      addProfessorMessage("professor", `${selectedSuggestions.length} flashcard(s) salvo(s) para revisao.`);
+      setFeedback({ type: "success", message: "Flashcards salvos." });
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Nao foi possivel salvar os flashcards."
+      });
+    } finally {
+      setIsSavingCards(false);
+    }
+  }
+
+  return (
+    <div className="professor-page">
+      <ToastFeedback feedback={feedback} onClose={() => setFeedback(null)} />
+
+      <section className="professor-hero">
+        <div className="professor-mark">
+          <DashboardIcon name="professor" />
+        </div>
+        <div>
+          <span>IA de estudos</span>
+          <h2>Professor</h2>
+          <p>Crie assuntos por comando e transforme conteudo em flashcards revisaveis.</p>
+        </div>
+      </section>
+
+      <section className="professor-grid">
+        <form className="professor-command-panel" onSubmit={handleProfessorCommand}>
+          <div className="panel-heading compact">
+            <h2>
+              <DashboardIcon name="spark" />
+              Pedido
+            </h2>
+          </div>
+
+          <label>
+            Fale com o Professor
+            <input
+              type="text"
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+              placeholder="Ex: Crie um assunto Algebra linear"
+              maxLength={240}
+            />
+          </label>
+
+          <div className="professor-subject-row">
+            <label>
+              Assunto
+              <select
+                value={selectedSubjectId}
+                onChange={(event) => setSelectedSubjectId(event.target.value)}
+                disabled={isLoading || subjects.length === 0}
+              >
+                <option value="">Escolha um assunto</option>
+                {subjects.map((subject) => (
+                  <option value={subject.id} key={subject.id}>
+                    {subject.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Cards
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={maxCards}
+                onChange={(event) => setMaxCards(clampMaxCards(Number(event.target.value)))}
+              />
+            </label>
+          </div>
+
+          <label>
+            Conteudo para estudar
+            <textarea
+              value={content}
+              onChange={(event) => setContent(event.target.value)}
+              placeholder="Cole aqui uma anotacao, resumo, trecho de aula ou texto que voce quer transformar em flashcards."
+              maxLength={20000}
+            />
+          </label>
+
+          <button className="professor-primary-button" type="submit" disabled={isWorking || isLoading}>
+            <DashboardIcon name="spark" />
+            {isWorking ? "Pensando..." : "Pedir ao Professor"}
+          </button>
+        </form>
+
+        <aside className="professor-side-panel">
+          <div className="panel-heading compact">
+            <h2>
+              <DashboardIcon name="book" />
+              Assunto rapido
+            </h2>
+          </div>
+
+          <label>
+            Nome do assunto
+            <input
+              type="text"
+              value={newSubjectName}
+              onChange={(event) => setNewSubjectName(event.target.value)}
+              placeholder="Ex: Redes de computadores"
+              maxLength={120}
+            />
+          </label>
+
+          <button type="button" onClick={handleCreateSubject} disabled={isWorking}>
+            <DashboardIcon name="plus" />
+            Criar assunto
+          </button>
+
+          <div className="professor-context-card">
+            <span>Contexto atual</span>
+            <strong>{selectedSubject ? selectedSubject.name : "Nenhum assunto selecionado"}</strong>
+            <p>{subjects.length} assunto(s) disponivel(is)</p>
+          </div>
+        </aside>
+      </section>
+
+      <section className="professor-results-grid">
+        <article className="professor-chat-panel">
+          <div className="panel-heading compact">
+            <h2>
+              <DashboardIcon name="note" />
+              Conversa
+            </h2>
+          </div>
+
+          <div className="professor-messages">
+            {messages.map((message) => (
+              <div className={`professor-message ${message.role}`} key={message.id}>
+                <span>{message.role === "professor" ? "Professor" : "Voce"}</span>
+                <p>{message.text}</p>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="professor-suggestions-panel">
+          <div className="panel-heading compact">
+            <h2>
+              <DashboardIcon name="cards" />
+              Sugestoes
+            </h2>
+            {hasSuggestions ? (
+              <button type="button" onClick={handleSaveSuggestions} disabled={isSavingCards}>
+                <DashboardIcon name="check" />
+                {isSavingCards ? "Salvando..." : "Salvar selecionados"}
+              </button>
+            ) : null}
+          </div>
+
+          {hasSuggestions ? (
+            <div className="professor-suggestion-list">
+              {suggestions.map((suggestion, index) => (
+                <label className="professor-suggestion-card" key={`${suggestion.question}-${index}`}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIndexes.includes(index)}
+                    onChange={() => toggleSuggestion(index)}
+                  />
+                  <div>
+                    <span className={`difficulty-pill tone-${suggestion.difficulty.toLowerCase()}`}>
+                      {getDifficultyLabel(suggestion.difficulty)}
+                    </span>
+                    <h3>{suggestion.question}</h3>
+                    <p>{suggestion.answer}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state professor-empty">
+              <DashboardIcon name="professor" />
+              <strong>Nenhuma sugestao ainda</strong>
+              <p>Escolha um assunto, cole um conteudo e peca ao Professor para gerar flashcards.</p>
+            </div>
+          )}
+        </article>
+      </section>
+    </div>
+  );
+}
+
 function ReviewSessionPage() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [reviewCards, setReviewCards] = useState<Flashcard[]>([]);
@@ -2859,6 +3305,10 @@ function getSectionSubtitle(section: HomeSection) {
     return "Crie cards de pergunta e resposta por assunto.";
   }
 
+  if (section === "professor") {
+    return "Peça ajuda para criar assuntos e gerar flashcards a partir do seu conteudo.";
+  }
+
   if (section === "reviews") {
     return "Revise os cards pendentes e mantenha a agenda em dia.";
   }
@@ -3025,6 +3475,16 @@ function DashboardIcon({ name }: { name: string }) {
       <>
         <path d="M12 2l1.7 6.3L20 10l-6.3 1.7L12 18l-1.7-6.3L4 10l6.3-1.7Z" />
         <path d="M19 16l.7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7Z" />
+      </>
+    ),
+    professor: (
+      <>
+        <path d="M4 7h16" />
+        <path d="M7 7V5h10v2" />
+        <path d="M8 10h8v9H8z" />
+        <path d="M10 13h4" />
+        <path d="M10 16h3" />
+        <path d="M6 19h12" />
       </>
     ),
     plus: (
