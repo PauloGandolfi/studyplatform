@@ -66,6 +66,31 @@ public class GeminiAiModelClient implements AiModelClient {
         }
     }
 
+    @Override
+    public String generateText(String prompt) {
+        if (!StringUtils.hasText(apiKey)) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Gemini API key is not configured");
+        }
+
+        GeminiGenerateContentRequest request = new GeminiGenerateContentRequest(
+                List.of(new GeminiContent(List.of(new GeminiPart(prompt)))),
+                null
+        );
+
+        try {
+            GeminiGenerateContentResponse response = restClient.post()
+                    .uri("/{model}:generateContent", model)
+                    .body(request)
+                    .retrieve()
+                    .body(GeminiGenerateContentResponse.class);
+
+            return extractText(response);
+        } catch (RestClientException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Unable to generate text with Gemini", ex);
+        }
+    }
+
+
     private static GenerateFlashcardsResponse sanitize(GenerateFlashcardsResponse response, int maxCards) {
         if (response.flashcards() == null) {
             return new GenerateFlashcardsResponse(List.of());
