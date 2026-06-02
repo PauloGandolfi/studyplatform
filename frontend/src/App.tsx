@@ -439,6 +439,155 @@ function clampMaxCards(value: number) {
   return Math.min(20, Math.max(1, Math.round(value)));
 }
 
+function renderInlineFormattedText(text: string) {
+  const segments = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g).filter(Boolean);
+
+  return segments.map((segment, index) => {
+    if (segment.startsWith("`") && segment.endsWith("`")) {
+      return <code key={`${segment}-${index}`}>{segment.slice(1, -1)}</code>;
+    }
+
+    if (segment.startsWith("**") && segment.endsWith("**")) {
+      return <strong key={`${segment}-${index}`}>{segment.slice(2, -2)}</strong>;
+    }
+
+    return <span key={`${segment}-${index}`}>{segment}</span>;
+  });
+}
+
+function renderMestreMessage(text: string) {
+  const blocks = text
+    .trim()
+    .split(/\n\s*\n/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+
+  return blocks.map((block, blockIndex) => {
+    if (block.startsWith("```") && block.endsWith("```")) {
+      const lines = block.split("\n");
+      const code = lines.slice(1, -1).join("\n");
+
+      return (
+        <pre className="mestre-code-block" key={`code-${blockIndex}`}>
+          <code>{code}</code>
+        </pre>
+      );
+    }
+
+    const lines = block.split("\n").map((line) => line.trimEnd());
+    const headingMatch = block.match(/^(#{1,3})\s+(.+)$/);
+
+    if (headingMatch) {
+      return (
+        <h4 className="mestre-heading" key={`heading-${blockIndex}`}>
+          {renderInlineFormattedText(headingMatch[2])}
+        </h4>
+      );
+    }
+
+    if (lines.every((line) => /^[-*]\s+/.test(line))) {
+      return (
+        <ul className="mestre-list" key={`list-${blockIndex}`}>
+          {lines.map((line, lineIndex) => (
+            <li key={`item-${blockIndex}-${lineIndex}`}>
+              {renderInlineFormattedText(line.replace(/^[-*]\s+/, ""))}
+            </li>
+          ))}
+        </ul>
+      );
+    }
+
+    if (lines.every((line) => /^\d+\.\s+/.test(line))) {
+      return (
+        <ol className="mestre-list mestre-list-numbered" key={`olist-${blockIndex}`}>
+          {lines.map((line, lineIndex) => (
+            <li key={`item-${blockIndex}-${lineIndex}`}>
+              {renderInlineFormattedText(line.replace(/^\d+\.\s+/, ""))}
+            </li>
+          ))}
+        </ol>
+      );
+    }
+
+    return (
+      <p key={`paragraph-${blockIndex}`}>
+        {lines.map((line, lineIndex) => (
+          <span className="mestre-line" key={`line-${blockIndex}-${lineIndex}`}>
+            {renderInlineFormattedText(line)}
+          </span>
+        ))}
+      </p>
+    );
+  });
+}
+
+function getMestreRevealStep(remainingLength: number) {
+  if (remainingLength > 420) {
+    return 12;
+  }
+
+  if (remainingLength > 180) {
+    return 8;
+  }
+
+  if (remainingLength > 80) {
+    return 5;
+  }
+
+  return 3;
+}
+
+function MestreMessageText({
+  messageId,
+  role,
+  text,
+  shouldAnimate,
+  onAnimated,
+  onProgress
+}: {
+  messageId: number;
+  role: "user" | "mestre";
+  text: string;
+  shouldAnimate: boolean;
+  onAnimated: (messageId: number) => void;
+  onProgress: () => void;
+}) {
+  const [visibleText, setVisibleText] = useState(() => (role === "mestre" && shouldAnimate ? "" : text));
+
+  useEffect(() => {
+    if (role !== "mestre" || !shouldAnimate) {
+      setVisibleText(text);
+      return;
+    }
+
+    setVisibleText("");
+    let currentLength = 0;
+
+    const interval = window.setInterval(() => {
+      const remainingLength = text.length - currentLength;
+      const nextLength = Math.min(text.length, currentLength + getMestreRevealStep(remainingLength));
+
+      currentLength = nextLength;
+      setVisibleText(text.slice(0, nextLength));
+      onProgress();
+
+      if (nextLength >= text.length) {
+        window.clearInterval(interval);
+        onAnimated(messageId);
+      }
+    }, 28);
+
+    return () => window.clearInterval(interval);
+  }, [messageId, onAnimated, onProgress, role, shouldAnimate, text]);
+
+  return (
+    <div className={`mestre-rendered-text ${role === "mestre" && shouldAnimate ? "is-streaming" : ""}`}>
+      {renderMestreMessage(visibleText)}
+      {role === "mestre" && shouldAnimate ? <span className="mestre-caret" aria-hidden="true" /> : null}
+    </div>
+  );
+}
+
 function ToastFeedback({
   feedback,
   onClose,
@@ -2224,8 +2373,13 @@ function MestreSidebar({
   const [isWorking, setIsWorking] = useState(false);
   const [isSavingCards, setIsSavingCards] = useState<Record<number, boolean>>({});
   const [selectedIndexesByMsg, setSelectedIndexesByMsg] = useState<Record<number, number[]>>({});
+  const [animatedMessageIds, setAnimatedMessageIds] = useState<Record<number, boolean>>({});
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollMessagesToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
 
   // Load subjects for the context attachment selection
   const loadSubjects = useCallback(async () => {
@@ -2251,8 +2405,35 @@ function MestreSidebar({
 
   // Scroll to bottom of chat
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    scrollMessagesToBottom();
+  }, [messages, scrollMessagesToBottom]);
+
+  useEffect(() => {
+    setAnimatedMessageIds((current) => {
+      const nextState = { ...current };
+
+      messages.forEach((message) => {
+        if (message.role === "user" && !nextState[message.id]) {
+          nextState[message.id] = true;
+        }
+      });
+
+      return nextState;
+    });
   }, [messages]);
+
+  const markMessageAsAnimated = useCallback((messageId: number) => {
+    setAnimatedMessageIds((current) => {
+      if (current[messageId]) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [messageId]: true
+      };
+    });
+  }, []);
 
   const addMessage = (role: "user" | "mestre", text: string, suggestions?: AiFlashcardSuggestion[]) => {
     setMessages((current) => [
@@ -2544,9 +2725,14 @@ function MestreSidebar({
               {message.role === "mestre" ? "Mestre" : "Voce"}
             </div>
             <div className="mestre-chat-bubble">
-              {message.text.split('\n\n').map((paragraph, idx) => (
-                <p key={idx}>{paragraph}</p>
-              ))}
+              <MestreMessageText
+                messageId={message.id}
+                role={message.role}
+                text={message.text}
+                shouldAnimate={message.role === "mestre" && !animatedMessageIds[message.id]}
+                onAnimated={markMessageAsAnimated}
+                onProgress={scrollMessagesToBottom}
+              />
             </div>
 
             {/* Render flashcards inline within the chat if any */}
