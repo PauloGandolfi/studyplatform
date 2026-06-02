@@ -3584,14 +3584,102 @@ textarea {
 .mestre-chat-bubble p {
   margin: 0 0 12px 0;
   font-size: 13px;
-  line-height: 1.6;
-  white-space: pre-wrap;
+  line-height: 1.7;
   word-wrap: break-word;
   overflow-wrap: break-word;
 }
 
 .mestre-chat-bubble p:last-child {
   margin-bottom: 0;
+}
+
+.mestre-rendered-text {
+  display: grid;
+  gap: 0;
+}
+
+.mestre-rendered-text.is-streaming {
+  position: relative;
+}
+
+.mestre-chat-bubble strong {
+  font-weight: 700;
+  color: inherit;
+}
+
+.mestre-chat-bubble code {
+  padding: 0.12rem 0.38rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+  font-size: 0.92em;
+}
+
+.mestre-line {
+  display: block;
+}
+
+.mestre-line + .mestre-line {
+  margin-top: 6px;
+}
+
+.mestre-heading {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.45;
+  font-weight: 700;
+}
+
+.mestre-list {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.mestre-list:last-child,
+.mestre-heading:last-child {
+  margin-bottom: 0;
+}
+
+.mestre-list li {
+  overflow-wrap: break-word;
+}
+
+.mestre-code-block {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.mestre-code-block:last-child {
+  margin-bottom: 0;
+}
+
+.mestre-code-block code {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre;
+}
+
+.mestre-caret {
+  width: 9px;
+  height: 1.1em;
+  display: inline-block;
+  margin-top: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.72;
+  animation: mestre-caret-blink 0.9s steps(1) infinite;
 }
 
 .mestre-loader {
@@ -3628,6 +3716,18 @@ textarea {
   40% {
     opacity: 1;
     transform: scaleY(1);
+  }
+}
+
+@keyframes mestre-caret-blink {
+  0%,
+  45% {
+    opacity: 0.78;
+  }
+
+  46%,
+  100% {
+    opacity: 0.16;
   }
 }
 
