@@ -1,10 +1,12 @@
 import { CSSProperties, ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import spaceImage from "./assets/space-login.png";
 import studyPlatformLogo from "./assets/study-platform-logo.png";
+import { apiRequest, getErrorMessage, readResponse, unauthorizedEventName } from "./shared/api/client";
+import { clearAuthStorage, getStoredUserName, persistAuthSession } from "./shared/lib/auth-storage";
+import { getPlaceholderCopy, getSectionLabel, getSectionSubtitle, HomeSection, navItems } from "./features/home/config/navigation";
 
 type AuthMode = "login" | "register" | "forgot" | "reset";
 type AppView = "auth" | "home";
-type HomeSection = "dashboard" | "tasks" | "subjects" | "notes" | "flashcards" | "reviews" | "stats" | "profile" | "settings";
 
 type Feedback = {
   type: "success" | "error";
@@ -141,22 +143,6 @@ const initialValues = {
 
 const initialResetToken = new URLSearchParams(window.location.search).get("resetToken") ?? "";
 
-const navItems: Array<{
-  label: string;
-  icon: string;
-  section: HomeSection;
-}> = [
-    { label: "Dashboard", icon: "dashboard", section: "dashboard" },
-    { label: "Missões", icon: "mission", section: "tasks" },
-    { label: "Assuntos", icon: "book", section: "subjects" },
-    { label: "Anotações", icon: "note", section: "notes" },
-    { label: "Flashcards", icon: "cards", section: "flashcards" },
-    { label: "Revisoes", icon: "calendar", section: "reviews" },
-    { label: "Estatisticas", icon: "chart", section: "stats" },
-    { label: "Perfil", icon: "user", section: "profile" },
-    { label: "Configuracoes", icon: "settings", section: "settings" }
-  ];
-
 const emptyNoteForm: NoteFormValues = {
   subjectId: "",
   title: "",
@@ -182,30 +168,6 @@ const emptySubjectForm: SubjectFormValues = {
   difficulty: "MEDIUM"
 };
 
-const placeholderTitles: Record<HomeSection, string> = {
-  dashboard: "Dashboard",
-  tasks: "Missões",
-  subjects: "Assuntos",
-  notes: "Anotações",
-  flashcards: "Flashcards",
-  reviews: "Revisoes",
-  stats: "Estatisticas",
-  profile: "Perfil",
-  settings: "Configuracoes"
-};
-
-const placeholderCopy: Record<HomeSection, string> = {
-  dashboard: "",
-  tasks: "",
-  subjects: "",
-  notes: "",
-  flashcards: "Flashcards entram depois que suas anotacoes estiverem organizadas.",
-  reviews: "Revisoes vao usar seu progresso e seus cards para montar a fila diaria.",
-  stats: "Estatisticas vao consolidar tempo de estudo, revisoes e criacao de conteudo.",
-  profile: "Perfil vai reunir dados da conta e preferencias de estudo.",
-  settings: "Configuracoes vao concentrar ajustes do aplicativo."
-};
-
 const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit",
   month: "short",
@@ -217,40 +179,6 @@ const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
 const notePreviewLimit = 128;
 const inactivityLimitMs = 15 * 60 * 1000;
 const pauseLimitSeconds = 15 * 60;
-const unauthorizedEventName = "studyplatform:unauthorized";
-
-function authorizationHeaders() {
-  const token = localStorage.getItem("studyplatform_token");
-
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-async function apiRequest<T>(endpoint: string, options: RequestInit = {}) {
-  const headers = new Headers(options.headers);
-  const authHeaders = authorizationHeaders();
-
-  Object.entries(authHeaders).forEach(([key, value]) => headers.set(key, value));
-
-  if (options.body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-
-  const response = await fetch(endpoint, {
-    ...options,
-    headers
-  });
-  const data = await readResponse(response);
-
-  if (!response.ok) {
-    if (response.status === 401) {
-      window.dispatchEvent(new Event(unauthorizedEventName));
-    }
-
-    throw new Error(getErrorMessage(response.status, data, "app"));
-  }
-
-  return data as T;
-}
 
 function buildNoteForm(note: Note | null, fallbackSubjectId: string): NoteFormValues {
   if (!note) {
@@ -477,10 +405,6 @@ function getSubjectName(subjects: Subject[], subjectId: string) {
   return subjects.find((subject) => subject.id === subjectId)?.name ?? "Assunto removido";
 }
 
-function getSectionLabel(section: HomeSection) {
-  return placeholderTitles[section];
-}
-
 function confirmDelete(itemLabel: string) {
   return window.confirm(`Tem certeza que deseja excluir ${itemLabel}? Esta acao nao pode ser desfeita.`);
 }
@@ -685,8 +609,7 @@ function App() {
   }
 
   function handleLogout() {
-    localStorage.removeItem("studyplatform_token");
-    localStorage.removeItem("studyplatform_user");
+    clearAuthStorage();
     setCurrentView("auth");
     setUserName(null);
     setFeedback(null);
@@ -695,8 +618,7 @@ function App() {
   }
 
   function completeLogin(loginData: LoginResponse) {
-    localStorage.setItem("studyplatform_token", loginData.accessToken);
-    localStorage.setItem("studyplatform_user", JSON.stringify(loginData));
+    persistAuthSession(loginData.accessToken, loginData);
     setUserName(loginData.name);
     setCurrentView("home");
     setValues(initialValues);
@@ -704,8 +626,7 @@ function App() {
 
   useEffect(() => {
     function handleUnauthorized() {
-      localStorage.removeItem("studyplatform_token");
-      localStorage.removeItem("studyplatform_user");
+      clearAuthStorage();
       setCurrentView("auth");
       setUserName(null);
       setMode("login");
@@ -3261,24 +3182,10 @@ function PlaceholderSection({ section }: { section: HomeSection }) {
   return (
     <section className="placeholder-section">
       <DashboardIcon name={navItems.find((item) => item.section === section)?.icon ?? "dashboard"} />
-      <h2>{placeholderTitles[section]}</h2>
-      <p>{placeholderCopy[section]}</p>
+      <h2>{getSectionLabel(section)}</h2>
+      <p>{getPlaceholderCopy(section)}</p>
     </section>
   );
-}
-
-async function readResponse(response: Response) {
-  const text = await response.text();
-
-  if (!text) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    return text;
-  }
 }
 
 function getAuthTitle(mode: AuthMode) {
@@ -3370,30 +3277,6 @@ function getSubmitLabel(mode: AuthMode) {
   return "Fazer login";
 }
 
-function getSectionSubtitle(section: HomeSection) {
-  if (section === "tasks") {
-    return "Defina uma missao principal, acompanhe passos secundarios e avance por status.";
-  }
-
-  if (section === "subjects") {
-    return "Crie e mantenha os assuntos que organizam suas anotacoes.";
-  }
-
-  if (section === "notes") {
-    return "Crie, filtre e revise suas anotacoes por assunto.";
-  }
-
-  if (section === "flashcards") {
-    return "Crie cards de pergunta e resposta por assunto.";
-  }
-
-  if (section === "reviews") {
-    return "Revise os cards pendentes e mantenha a agenda em dia.";
-  }
-
-  return placeholderCopy[section] || "Pronto para mais uma sessao de estudos?";
-}
-
 function getResponseMessage(data: unknown, fallback: string) {
   if (typeof data === "object" && data !== null && "message" in data) {
     return String((data as { message: unknown }).message);
@@ -3408,42 +3291,6 @@ function clearResetTokenFromUrl() {
   }
 
   window.history.replaceState({}, document.title, window.location.pathname);
-}
-
-function getErrorMessage(status: number, data: unknown, context: "app" | "auth" | "login" = "app") {
-  if (typeof data === "object" && data !== null && "message" in data) {
-    return String((data as { message: unknown }).message);
-  }
-
-  if (typeof data === "object" && data !== null && "detail" in data) {
-    return String((data as { detail: unknown }).detail);
-  }
-
-  if (status === 401) {
-    return context === "login"
-      ? "Usuario ou senha invalidos."
-      : "Sua sessao expirou. Entre novamente para salvar suas alteracoes.";
-  }
-
-  if (status === 409) {
-    return "Este usuario ou email ja esta cadastrado.";
-  }
-
-  return "Nao foi possivel conectar. Verifique se o backend esta rodando.";
-}
-
-function getStoredUserName() {
-  const storedUser = localStorage.getItem("studyplatform_user");
-
-  if (!storedUser) {
-    return null;
-  }
-
-  try {
-    return (JSON.parse(storedUser) as Partial<LoginResponse>).name ?? null;
-  } catch {
-    return null;
-  }
 }
 
 function getInitials(name: string) {
