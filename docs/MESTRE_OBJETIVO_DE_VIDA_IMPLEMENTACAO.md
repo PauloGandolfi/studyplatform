@@ -96,6 +96,65 @@ Com isso, o usuario nao enxerga apenas topicos soltos. Ele enxerga uma jornada, 
 
 ---
 
+## Exemplo 3: Recomendacao estruturada de estudo
+
+Outra ideia importante e fazer a IA responder buscas de estudo com estrutura de dados, e nao apenas com texto solto.
+
+Exemplo de entrada:
+
+> Quero estudar sobre Spring Boot
+
+Ou de forma mais especifica:
+
+> Quero estudar Spring Security para aprender autenticacao JWT
+
+Em vez de responder apenas:
+
+> Estude Spring Boot.
+
+A IA poderia retornar algo em formato estruturado, por exemplo:
+
+```json
+{
+  "assunto": "Spring Security",
+  "nivel": "iniciante",
+  "objetivo": "aprender autenticacao JWT",
+  "recomendacoes": [
+    {
+      "tipo": "curso",
+      "titulo": "Spring Security - Alura",
+      "plataforma": "Alura",
+      "link": "...",
+      "motivo": "bom para aprender fluxo de autenticacao"
+    },
+    {
+      "tipo": "video",
+      "titulo": "Spring Security JWT",
+      "plataforma": "YouTube",
+      "link": "...",
+      "motivo": "conteudo gratuito e direto ao ponto"
+    },
+    {
+      "tipo": "documentacao",
+      "titulo": "Spring Security Docs",
+      "plataforma": "Spring",
+      "link": "...",
+      "motivo": "fonte oficial"
+    }
+  ]
+}
+```
+
+Ponto importante:
+
+- a ideia inicial e retornar recomendacoes sem navegar na internet em tempo real
+- o sistema responde com base em conhecimento previamente conhecido pelo modelo
+- essas recomendacoes devem ser tratadas como sugestoes do Mentor, nao como busca atualizada
+
+Isso abre espaco para uma experiencia de "guia de estudo" muito mais rica, porque o usuario nao recebe apenas uma explicacao, mas um mini plano de consumo de conteudo.
+
+---
+
 ## Proposta de experiencia
 
 ### 1. Cadastro de objetivo
@@ -184,6 +243,81 @@ O valor real passa a ser:
 - conectar conteudo, tarefas, revisoes e metas em torno de um objetivo real
 
 Isso deixa a plataforma mais interessante, mais inteligente e mais proxima de um treinador pessoal.
+
+---
+
+## Recomendacoes inteligentes sem navegacao
+
+Essa ideia de recomendacao estruturada pode funcionar como um segundo modo complementar ao modo de objetivos.
+
+### Comportamento desejado
+
+Quando o usuario pedir algo como:
+
+- Quero estudar Spring Boot
+- Quero aprender Spring Security
+- Quero entender Docker para Java
+
+O Mentor pode retornar:
+
+- assunto sugerido
+- nivel estimado
+- objetivo de aprendizagem
+- recomendacoes de conteudo
+- ordem sugerida de consumo
+- sugestao de pratica
+- sugestao de flashcards e revisoes
+
+### Exemplo de estrutura expandida
+
+```json
+{
+  "assunto": "Spring Boot",
+  "nivel": "iniciante",
+  "objetivo": "criar a primeira API REST com Java e Spring Boot",
+  "ordem_sugerida": [
+    "entender o papel do Spring Boot",
+    "criar projeto inicial",
+    "criar endpoints REST",
+    "conectar com banco de dados",
+    "testar a aplicacao"
+  ],
+  "recomendacoes": [
+    {
+      "tipo": "curso",
+      "titulo": "Curso de Spring Boot",
+      "plataforma": "Plataforma sugerida",
+      "link": "...",
+      "motivo": "bom para iniciar com passo a passo"
+    }
+  ],
+  "pratica_sugerida": "criar uma API de tarefas com CRUD",
+  "flashcards_sugeridos": 10,
+  "revisao_em_dias": [1, 3, 7]
+}
+```
+
+### Beneficio para o produto
+
+Isso aproxima a experiencia de:
+
+- recomendacao personalizada
+- curadoria automatica
+- inicio rapido de estudo
+- integracao com plano, tarefa e revisao
+
+### Observacao importante
+
+Como a proposta e nao navegar na internet em tempo real:
+
+- os links e referencias podem ser genericos no MVP
+- a IA pode devolver sugestoes conhecidas, mas sem garantia de atualizacao
+- o frontend deve exibir isso como recomendacao do Mentor, nao como resultado de busca em tempo real
+
+No futuro, se desejado, isso pode evoluir para dois modos:
+
+- modo offline com conhecimento do modelo
+- modo online com busca e validacao externa
 
 ---
 
@@ -348,7 +482,7 @@ Deve destacar:
 
 ## Papel da IA
 
-O Mestre pode atuar em quatro niveis:
+O Mentor pode atuar em quatro niveis:
 
 ### 1. Planejador
 
@@ -368,6 +502,31 @@ Faz follow-up, resume progresso e sugere o proximo passo.
 
 ---
 
+## Resposta estruturada da IA
+
+Para essa visao funcionar bem, a IA deve retornar estruturas previsiveis, e nao apenas texto livre.
+
+Tipos de resposta desejados:
+
+- plano de objetivo
+- quebra por pilares
+- missoes semanais
+- recomendacoes de conteudo
+- sugestoes de revisao
+- sugestoes de flashcards
+- resumo de progresso
+
+Exemplos de contratos uteis:
+
+- `GoalPlanResponse`
+- `GoalProgressResponse`
+- `StudyRecommendationsResponse`
+- `WeeklyMissionPlanResponse`
+
+Isso ajuda o backend a validar, persistir e transformar a resposta da IA em elementos reais da plataforma.
+
+---
+
 ## MVP recomendado
 
 Para evitar escopo grande demais, o primeiro corte pode focar em:
@@ -378,7 +537,8 @@ Para evitar escopo grande demais, o primeiro corte pode focar em:
 - vinculacao com tarefas
 - percentual simples de progresso
 - tela de detalhe do objetivo
-- resumo do Mestre com base no objetivo
+- resumo do Mentor com base no objetivo
+- recomendacao estruturada de estudo sem navegacao externa
 
 Fica para depois:
 
@@ -395,11 +555,14 @@ Fica para depois:
 ### Descoberta e definicao
 
 - [ ] Definir o nome oficial da feature: `Objetivos`, `Jornadas` ou `Modo Objetivo de Vida`
+- [ ] Definir o rename oficial de `Mestre` para `Mentor`
 - [ ] Definir se o objetivo pode ter prazo obrigatorio ou opcional
 - [ ] Definir se o usuario pode ter mais de um objetivo ativo
 - [ ] Definir a regra inicial de calculo de progresso
 - [ ] Definir se pilares serao entidades novas ou assunto reutilizado
 - [ ] Definir quais partes serao geradas por IA e quais serao deterministicas
+- [ ] Definir ate onde a recomendacao de conteudo pode ir sem navegacao externa
+- [ ] Definir o aviso de produto para deixar claro que as recomendacoes nao sao resultados em tempo real
 
 ### Modelagem de dados
 
@@ -415,6 +578,7 @@ Fica para depois:
 
 - [ ] Criar endpoints para CRUD de objetivos
 - [ ] Criar endpoint para gerar plano inicial com IA
+- [ ] Criar endpoint para recomendacao estruturada de estudo
 - [ ] Criar endpoint para detalhar objetivo com pilares, metas e progresso
 - [ ] Criar endpoint para replanejamento
 - [ ] Implementar servico de calculo de progresso
@@ -427,11 +591,15 @@ Fica para depois:
 - [ ] Definir prompt para quebrar objetivo em pilares
 - [ ] Definir prompt para gerar missoes semanais
 - [ ] Definir prompt para sugerir revisoes e flashcards
+- [ ] Definir prompt para recomendacao estruturada de conteudo
 - [ ] Garantir saida estruturada em JSON
 - [ ] Tratar fallback quando a IA devolver estrutura invalida
+- [ ] Definir schema para `StudyRecommendationsResponse`
 
 ### Frontend
 
+- [ ] Atualizar nomenclatura visual de `Mestre` para `Mentor`
+- [ ] Atualizar labels, componentes e textos internos ligados ao `Mestre`
 - [ ] Criar secao de navegacao para objetivos
 - [ ] Criar tela de listagem de objetivos
 - [ ] Criar formulario de criacao de objetivo
@@ -440,15 +608,18 @@ Fica para depois:
 - [ ] Exibir percentual por pilar
 - [ ] Exibir missoes da semana
 - [ ] Exibir revisoes pendentes ligadas ao objetivo
-- [ ] Integrar o Mestre ao contexto do objetivo selecionado
+- [ ] Integrar o Mentor ao contexto do objetivo selecionado
+- [ ] Criar visualizacao de recomendacoes estruturadas de estudo
+- [ ] Permitir transformar uma recomendacao em tarefa, assunto ou plano
 
 ### Experiencia do usuario
 
 - [ ] Permitir aprovar ou editar o plano gerado antes de salvar
 - [ ] Mostrar claramente como o progresso foi calculado
-- [ ] Exibir mensagens de acompanhamento do Mestre
+- [ ] Exibir mensagens de acompanhamento do Mentor
 - [ ] Destacar atrasos, risco de nao cumprir prazo e proximos passos
 - [ ] Garantir que a feature faca sentido mesmo para objetivos sem prazo fechado
+- [ ] Deixar claro quando uma recomendacao veio do conhecimento do modelo e nao de busca externa
 
 ### Observabilidade e qualidade
 
@@ -465,6 +636,7 @@ Fica para depois:
 
 ### Fase 1
 
+- rename de `Mestre` para `Mentor`
 - modelagem de objetivo
 - CRUD basico
 - tela simples de objetivos
@@ -472,6 +644,7 @@ Fica para depois:
 ### Fase 2
 
 - geracao de pilares e plano inicial por IA
+- recomendacao estruturada de estudo
 - salvamento estruturado
 - detalhe do objetivo
 
@@ -503,11 +676,13 @@ Fica para depois:
 
 O melhor caminho parece ser:
 
-1. Criar a camada de `objetivos`.
-2. Fazer o Mestre gerar um plano inicial estruturado.
-3. Transformar esse plano em entidades reais da plataforma.
-4. Exibir progresso consolidado por objetivo.
-5. Evoluir o Mestre para acompanhar a jornada, e nao apenas responder mensagens.
+1. Consolidar o rename de `Mestre` para `Mentor`.
+2. Criar a camada de `objetivos`.
+3. Fazer o Mentor gerar um plano inicial estruturado.
+4. Adicionar recomendacoes estruturadas de estudo sem navegacao externa.
+5. Transformar esse plano em entidades reais da plataforma.
+6. Exibir progresso consolidado por objetivo.
+7. Evoluir o Mentor para acompanhar a jornada, e nao apenas responder mensagens.
 
 Esse caminho reaproveita a base atual e eleva bastante o valor percebido do produto.
 
