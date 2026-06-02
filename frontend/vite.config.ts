@@ -33,6 +33,10 @@ export default defineConfig({
       "/study-time": {
         target: "http://localhost:8081",
         changeOrigin: true
+      },
+      "/ai": {
+        target: "http://localhost:8081",
+        changeOrigin: true
       }
     }
   }

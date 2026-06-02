@@ -4,7 +4,7 @@ import studyPlatformLogo from "./assets/study-platform-logo.png";
 
 type AuthMode = "login" | "register" | "forgot" | "reset";
 type AppView = "auth" | "home";
-type HomeSection = "dashboard" | "tasks" | "subjects" | "notes" | "flashcards" | "professor" | "reviews" | "stats" | "profile" | "settings";
+type HomeSection = "dashboard" | "tasks" | "subjects" | "notes" | "flashcards" | "reviews" | "stats" | "profile" | "settings";
 
 type Feedback = {
   type: "success" | "error";
@@ -151,7 +151,6 @@ const navItems: Array<{
     { label: "Assuntos", icon: "book", section: "subjects" },
     { label: "Anotações", icon: "note", section: "notes" },
     { label: "Flashcards", icon: "cards", section: "flashcards" },
-    { label: "Professor", icon: "professor", section: "professor" },
     { label: "Revisoes", icon: "calendar", section: "reviews" },
     { label: "Estatisticas", icon: "chart", section: "stats" },
     { label: "Perfil", icon: "user", section: "profile" },
@@ -189,7 +188,6 @@ const placeholderTitles: Record<HomeSection, string> = {
   subjects: "Assuntos",
   notes: "Anotações",
   flashcards: "Flashcards",
-  professor: "Professor",
   reviews: "Revisoes",
   stats: "Estatisticas",
   profile: "Perfil",
@@ -202,7 +200,6 @@ const placeholderCopy: Record<HomeSection, string> = {
   subjects: "",
   notes: "",
   flashcards: "Flashcards entram depois que suas anotacoes estiverem organizadas.",
-  professor: "Use a IA para criar assuntos e transformar conteudo em flashcards.",
   reviews: "Revisoes vao usar seu progresso e seus cards para montar a fila diaria.",
   stats: "Estatisticas vao consolidar tempo de estudo, revisoes e criacao de conteudo.",
   profile: "Perfil vai reunir dados da conta e preferencias de estudo.",
@@ -490,13 +487,13 @@ function confirmDelete(itemLabel: string) {
 
 function parseCreateSubjectCommand(command: string) {
   const normalized = command.trim();
-  const match = normalized.match(/^(crie|criar|cria|adicione|adicionar)\s+(um\s+|uma\s+)?(assunto|materia)\s+(.+)$/i);
+  const match = normalized.match(/^(crie|criar|cria|adicione|adicionar)\s+(um\s+|uma\s+)?(assuntos?|materias?)\s+(referentes?\s+a\s+|de\s+)?(.+)$/i);
 
   if (!match) {
     return null;
   }
 
-  return match[4].replace(/[.!?]+$/g, "").trim();
+  return match[5].replace(/[.!?]+$/g, "").trim();
 }
 
 function getProfessorPromptText(prompt: string, content: string) {
@@ -911,9 +908,10 @@ function HomePage({
   onSectionChange: (section: HomeSection) => void;
 }) {
   const initials = getInitials(userName);
+  const [isMestreOpen, setIsMestreOpen] = useState(false);
 
   return (
-    <main className="home-page">
+    <main className={`home-page ${isMestreOpen ? "mestre-open" : ""}`}>
       <aside className="sidebar">
         <button
           className="sidebar-brand"
@@ -968,6 +966,16 @@ function HomePage({
               <input type="search" placeholder="Buscar..." />
               <SearchIcon />
             </label>
+            <button
+              className={`mestre-toggle-button ${isMestreOpen ? "active" : ""}`}
+              type="button"
+              onClick={() => setIsMestreOpen(!isMestreOpen)}
+              title="Conversar com o Mestre"
+              aria-label="Abrir assistente Mestre"
+            >
+              <DashboardIcon name="spark" />
+              <span>Mestre</span>
+            </button>
             <button className="profile-button" type="button" aria-label="Perfil">
               {initials}
             </button>
@@ -985,8 +993,6 @@ function HomePage({
           <NotesPage />
         ) : currentSection === "flashcards" ? (
           <FlashcardsPage />
-        ) : currentSection === "professor" ? (
-          <ProfessorPage />
         ) : currentSection === "reviews" ? (
           <ReviewSessionPage />
         ) : currentSection === "dashboard" ? (
@@ -995,6 +1001,12 @@ function HomePage({
           <PlaceholderSection section={currentSection} />
         )}
       </section>
+
+      <MestreSidebar
+        isOpen={isMestreOpen}
+        onClose={() => setIsMestreOpen(false)}
+        userName={userName}
+      />
     </main>
   );
 }
@@ -2251,72 +2263,93 @@ function FlashcardsPage() {
   );
 }
 
-function ProfessorPage() {
+type MestreMessage = {
+  id: number;
+  role: "user" | "mestre";
+  text: string;
+  suggestions?: AiFlashcardSuggestion[];
+  saved?: boolean;
+};
+
+function MestreSidebar({
+  isOpen,
+  onClose,
+  userName
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  userName: string;
+}) {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubjectId, setSelectedSubjectId] = useState("");
   const [newSubjectName, setNewSubjectName] = useState("");
-  const [prompt, setPrompt] = useState("Crie flashcards sobre este conteudo");
-  const [content, setContent] = useState("");
+  
+  // Context attachment settings
   const [maxCards, setMaxCards] = useState(8);
-  const [suggestions, setSuggestions] = useState<AiFlashcardSuggestion[]>([]);
-  const [selectedIndexes, setSelectedIndexes] = useState<number[]>([]);
-  const [messages, setMessages] = useState<ProfessorMessage[]>([
+  const [content, setContent] = useState("");
+  const [showContextPanel, setShowContextPanel] = useState(false);
+
+  // Chat states
+  const [prompt, setPrompt] = useState("");
+  const [messages, setMessages] = useState<MestreMessage[]>([
     {
       id: 1,
-      role: "professor",
-      text: "Eu sou o Professor. Posso criar assuntos e gerar flashcards a partir do seu conteudo."
+      role: "mestre",
+      text: `Ola, ${userName}! Sou o Mestre, seu assistente pessoal de estudos. Posso tirar suas duvidas, criar assuntos ou gerar flashcards para voce revisar. Como posso te ajudar hoje?`
     }
   ]);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingSubjects, setIsLoadingSubjects] = useState(false);
   const [isWorking, setIsWorking] = useState(false);
-  const [isSavingCards, setIsSavingCards] = useState(false);
+  const [isSavingCards, setIsSavingCards] = useState<Record<number, boolean>>({});
+  const [selectedIndexesByMsg, setSelectedIndexesByMsg] = useState<Record<number, number[]>>({});
 
-  const selectedSubject = subjects.find((subject) => subject.id === selectedSubjectId) ?? null;
-  const hasSuggestions = suggestions.length > 0;
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const loadProfessorData = useCallback(async () => {
-    setIsLoading(true);
-
+  // Load subjects for the context attachment selection
+  const loadSubjects = useCallback(async () => {
+    setIsLoadingSubjects(true);
     try {
-      const subjectsData = await apiRequest<Subject[]>("/subjects");
-      setSubjects(subjectsData);
-      setSelectedSubjectId((current) =>
-        current && subjectsData.some((subject) => subject.id === current) ? current : subjectsData[0]?.id ?? ""
-      );
-      setFeedback(null);
+      const data = await apiRequest<Subject[]>("/subjects");
+      setSubjects(data);
+      if (data.length > 0 && !selectedSubjectId) {
+        setSelectedSubjectId(data[0].id);
+      }
     } catch (error) {
-      setFeedback({
-        type: "error",
-        message: error instanceof Error ? error.message : "Nao foi possivel carregar os assuntos."
-      });
+      console.error("Erro ao carregar assuntos:", error);
     } finally {
-      setIsLoading(false);
+      setIsLoadingSubjects(false);
     }
-  }, []);
+  }, [selectedSubjectId]);
 
   useEffect(() => {
-    loadProfessorData();
-  }, [loadProfessorData]);
+    if (isOpen) {
+      loadSubjects();
+    }
+  }, [isOpen, loadSubjects]);
 
-  function addProfessorMessage(role: ProfessorMessage["role"], text: string) {
+  // Scroll to bottom of chat
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const addMessage = (role: "user" | "mestre", text: string, suggestions?: AiFlashcardSuggestion[]) => {
     setMessages((current) => [
       ...current,
       {
         id: Date.now() + current.length,
         role,
-        text
+        text,
+        suggestions
       }
     ]);
-  }
+  };
 
-  function toggleSuggestion(index: number) {
-    setSelectedIndexes((current) =>
-      current.includes(index) ? current.filter((item) => item !== index) : [...current, index]
-    );
-  }
+  const handleSuggestionClick = (text: string) => {
+    setPrompt(text);
+  };
 
-  async function createSubject(name: string) {
+  const createSubject = async (name: string) => {
     const savedSubject = await apiRequest<Subject>("/subjects", {
       method: "POST",
       body: JSON.stringify({
@@ -2324,97 +2357,19 @@ function ProfessorPage() {
         difficulty: "MEDIUM"
       })
     });
-
     setSubjects((current) => [savedSubject, ...current]);
     setSelectedSubjectId(savedSubject.id);
     return savedSubject;
-  }
+  };
 
-  async function handleProfessorCommand(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const trimmedPrompt = prompt.trim();
-    const subjectNameFromCommand = parseCreateSubjectCommand(trimmedPrompt);
-
-    if (!trimmedPrompt && !content.trim()) {
-      setFeedback({ type: "error", message: "Escreva um pedido ou cole um conteudo para o Professor trabalhar." });
-      return;
-    }
-
-    setIsWorking(true);
-    setFeedback(null);
-    addProfessorMessage("user", trimmedPrompt || "Gerar flashcards com o conteudo informado.");
-
-    try {
-      if (subjectNameFromCommand) {
-        const savedSubject = await createSubject(subjectNameFromCommand);
-        setNewSubjectName("");
-        addProfessorMessage("professor", `Assunto "${savedSubject.name}" criado. Agora voce pode colar um conteudo para gerar flashcards.`);
-        setFeedback({ type: "success", message: "Assunto criado pelo Professor." });
-        return;
-      }
-
-      const activeSubject = selectedSubjectId
-        ? subjects.find((subject) => subject.id === selectedSubjectId) ?? null
-        : null;
-
-      if (!activeSubject) {
-        setFeedback({ type: "error", message: "Escolha ou crie um assunto antes de gerar flashcards." });
-        addProfessorMessage("professor", "Escolha um assunto primeiro. Eu preciso dele para organizar os flashcards.");
-        return;
-      }
-
-      const sourceContent = getProfessorPromptText(trimmedPrompt, content);
-
-      if (!sourceContent) {
-        setFeedback({ type: "error", message: "Cole um conteudo ou escreva um pedido para gerar os flashcards." });
-        return;
-      }
-
-      const response = await apiRequest<{ flashcards: AiFlashcardSuggestion[] }>("/ai/flashcards/generate", {
-        method: "POST",
-        body: JSON.stringify({
-          subjectId: activeSubject.id,
-          content: sourceContent,
-          maxCards
-        })
-      });
-
-      const nextSuggestions = response.flashcards ?? [];
-      setSuggestions(nextSuggestions);
-      setSelectedIndexes(nextSuggestions.map((_, index) => index));
-      addProfessorMessage(
-        "professor",
-        nextSuggestions.length > 0
-          ? `Gerei ${nextSuggestions.length} sugestao(oes) para ${activeSubject.name}. Revise e salve as melhores.`
-          : "Nao encontrei conteudo suficiente para gerar flashcards bons."
-      );
-      setFeedback({ type: "success", message: "Sugestoes geradas pelo Professor." });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Nao foi possivel conversar com o Professor.";
-      setFeedback({ type: "error", message });
-      addProfessorMessage("professor", message);
-    } finally {
-      setIsWorking(false);
-    }
-  }
-
-  async function handleCreateSubject() {
+  const handleCreateSubject = async () => {
     const name = newSubjectName.trim();
-
-    if (!name) {
-      setFeedback({ type: "error", message: "Informe o nome do assunto." });
-      return;
-    }
-
+    if (!name) return;
     setIsWorking(true);
-    setFeedback(null);
-
     try {
       const savedSubject = await createSubject(name);
       setNewSubjectName("");
-      addProfessorMessage("professor", `Assunto "${savedSubject.name}" criado.`);
-      setFeedback({ type: "success", message: "Assunto criado." });
+      addMessage("mestre", `Assunto "${savedSubject.name}" criado com sucesso! Agora voce ja pode gerar flashcards ou associar anotacoes a ele.`);
     } catch (error) {
       setFeedback({
         type: "error",
@@ -2423,25 +2378,128 @@ function ProfessorPage() {
     } finally {
       setIsWorking(false);
     }
-  }
+  };
 
-  async function handleSaveSuggestions() {
-    if (!selectedSubjectId) {
-      setFeedback({ type: "error", message: "Escolha um assunto antes de salvar os flashcards." });
+  const handleSendMessage = async (e?: FormEvent<HTMLFormElement>) => {
+    if (e) e.preventDefault();
+
+    const trimmedPrompt = prompt.trim();
+    const hasContent = content.trim().length > 0;
+
+    if (!trimmedPrompt && !hasContent) {
       return;
     }
 
-    const selectedSuggestions = [...selectedIndexes]
-      .sort((left, right) => left - right)
-      .map((index) => suggestions[index])
+    // Determine if it's a create subject command
+    const subjectNameFromCommand = parseCreateSubjectCommand(trimmedPrompt);
+
+    setIsWorking(true);
+    setFeedback(null);
+    setPrompt("");
+
+    const displayUserPrompt = trimmedPrompt || "Gere flashcards a partir do conteudo anexado.";
+    addMessage("user", displayUserPrompt);
+
+    try {
+      if (subjectNameFromCommand) {
+        const savedSubject = await createSubject(subjectNameFromCommand);
+        addMessage("mestre", `Assunto "${savedSubject.name}" criado com sucesso! Agora voce pode comecar a estudar.`);
+        return;
+      }
+
+      // If they click generate cards or there is content, trigger flashcard generation
+      if (hasContent || trimmedPrompt.toLowerCase().includes("flashcard") || trimmedPrompt.toLowerCase().includes("card")) {
+        const activeSubject = selectedSubjectId
+          ? subjects.find((s) => s.id === selectedSubjectId)
+          : subjects[0] || null;
+
+        if (!activeSubject) {
+          addMessage("mestre", "Por favor, crie um assunto primeiro para que eu possa organizar seus flashcards.");
+          return;
+        }
+
+        const sourceContent = getProfessorPromptText(trimmedPrompt, content);
+
+        const response = await apiRequest<{ flashcards: AiFlashcardSuggestion[] }>("/ai/flashcards/generate", {
+          method: "POST",
+          body: JSON.stringify({
+            subjectId: activeSubject.id,
+            content: sourceContent,
+            maxCards
+          })
+        });
+
+        const generated = response.flashcards ?? [];
+        if (generated.length > 0) {
+          const msgId = Date.now();
+          setMessages((current) => [
+            ...current,
+            {
+              id: msgId,
+              role: "mestre",
+              text: `Gerei ${generated.length} sugestoes de flashcards para o assunto "${activeSubject.name}". Revise-as abaixo:`,
+              suggestions: generated
+            }
+          ]);
+          setSelectedIndexesByMsg((prev) => ({
+            ...prev,
+            [msgId]: generated.map((_, i) => i)
+          }));
+          // Clear context after successful generation
+          setContent("");
+          setShowContextPanel(false);
+        } else {
+          addMessage("mestre", "Nao consegui extrair conteudo suficiente para gerar bons flashcards. Pode fornecer mais texto?");
+        }
+        return;
+      }
+
+      // Generic Chat Endpoint call
+      const chatResponse = await apiRequest<{ response: string }>("/ai/chat", {
+        method: "POST",
+        body: JSON.stringify({
+          message: trimmedPrompt
+        })
+      });
+
+      addMessage("mestre", chatResponse.response);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Nao foi possivel conectar ao Mestre.";
+      addMessage("mestre", `Erro: ${errorMsg}`);
+    } finally {
+      setIsWorking(false);
+    }
+  };
+
+  const toggleSuggestionCheck = (msgId: number, index: number) => {
+    setSelectedIndexesByMsg((prev) => {
+      const current = prev[msgId] ?? [];
+      const updated = current.includes(index)
+        ? current.filter((i) => i !== index)
+        : [...current, index];
+      return { ...prev, [msgId]: updated };
+    });
+  };
+
+  const handleSaveFlashcards = async (msgId: number, suggestions: AiFlashcardSuggestion[]) => {
+    const selectedIndexes = selectedIndexesByMsg[msgId] ?? [];
+    const selectedSuggestions = selectedIndexes
+      .sort((a, b) => a - b)
+      .map((idx) => suggestions[idx])
       .filter(Boolean);
 
     if (selectedSuggestions.length === 0) {
-      setFeedback({ type: "error", message: "Selecione pelo menos uma sugestao para salvar." });
+      setFeedback({ type: "error", message: "Selecione ao menos um flashcard para salvar." });
       return;
     }
 
-    setIsSavingCards(true);
+    const activeSubjectId = selectedSubjectId || (subjects[0]?.id ?? "");
+    if (!activeSubjectId) {
+      setFeedback({ type: "error", message: "Selecione um assunto para salvar os flashcards." });
+      return;
+    }
+
+    setIsSavingCards((prev) => ({ ...prev, [msgId]: true }));
     setFeedback(null);
 
     try {
@@ -2450,7 +2508,7 @@ function ProfessorPage() {
           apiRequest<Flashcard>("/flashcards", {
             method: "POST",
             body: JSON.stringify({
-              subjectId: selectedSubjectId,
+              subjectId: activeSubjectId,
               question: suggestion.question,
               answer: suggestion.answer,
               difficulty: suggestion.difficulty
@@ -2459,194 +2517,218 @@ function ProfessorPage() {
         )
       );
 
-      setSuggestions([]);
-      setSelectedIndexes([]);
-      addProfessorMessage("professor", `${selectedSuggestions.length} flashcard(s) salvo(s) para revisao.`);
-      setFeedback({ type: "success", message: "Flashcards salvos." });
+      // Update message status to saved
+      setMessages((current) =>
+        current.map((msg) => (msg.id === msgId ? { ...msg, saved: true } : msg))
+      );
+      setFeedback({ type: "success", message: `${selectedSuggestions.length} flashcard(s) salvo(s)!` });
     } catch (error) {
       setFeedback({
         type: "error",
-        message: error instanceof Error ? error.message : "Nao foi possivel salvar os flashcards."
+        message: error instanceof Error ? error.message : "Erro ao salvar flashcards."
       });
     } finally {
-      setIsSavingCards(false);
+      setIsSavingCards((prev) => ({ ...prev, [msgId]: false }));
     }
-  }
+  };
+
+  if (!isOpen) return null;
 
   return (
-    <div className="professor-page">
+    <aside className="mestre-sidebar" aria-label="Mestre AI Chat Sidebar">
       <ToastFeedback feedback={feedback} onClose={() => setFeedback(null)} />
-
-      <section className="professor-hero">
-        <div className="professor-mark">
-          <DashboardIcon name="professor" />
-        </div>
-        <div>
-          <span>IA de estudos</span>
-          <h2>Professor</h2>
-          <p>Crie assuntos por comando e transforme conteudo em flashcards revisaveis.</p>
-        </div>
-      </section>
-
-      <section className="professor-grid">
-        <form className="professor-command-panel" onSubmit={handleProfessorCommand}>
-          <div className="panel-heading compact">
-            <h2>
-              <DashboardIcon name="spark" />
-              Pedido
-            </h2>
+      <header className="mestre-header">
+        <div className="mestre-title-block">
+          <div className="mestre-avatar">
+            <DashboardIcon name="spark" />
           </div>
+          <div>
+            <h3>Mestre</h3>
+            <span className="mestre-subtitle">Assistente de Estudos</span>
+          </div>
+        </div>
+        <button className="mestre-close-button" type="button" onClick={onClose} aria-label="Fechar chat">
+          <DashboardIcon name="close" />
+        </button>
+      </header>
 
-          <label>
-            Fale com o Professor
-            <input
-              type="text"
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Ex: Crie um assunto Algebra linear"
-              maxLength={240}
-            />
-          </label>
-
-          <div className="professor-subject-row">
-            <label>
-              Assunto
-              <select
-                value={selectedSubjectId}
-                onChange={(event) => setSelectedSubjectId(event.target.value)}
-                disabled={isLoading || subjects.length === 0}
-              >
-                <option value="">Escolha um assunto</option>
-                {subjects.map((subject) => (
-                  <option value={subject.id} key={subject.id}>
-                    {subject.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              Cards
+      {/* Attachment Context Panel */}
+      {showContextPanel && (
+        <div className="mestre-context-panel">
+          <div className="context-panel-header">
+            <h4>Anexar Conteudo para Estudar</h4>
+            <button className="context-close" onClick={() => setShowContextPanel(false)}>
+              <DashboardIcon name="close" />
+            </button>
+          </div>
+          <div className="context-panel-body">
+            <div className="context-row">
+              <label>
+                Assunto
+                <select
+                  value={selectedSubjectId}
+                  onChange={(e) => setSelectedSubjectId(e.target.value)}
+                  disabled={isLoadingSubjects || subjects.length === 0}
+                >
+                  <option value="">Escolha um assunto</option>
+                  {subjects.map((subject) => (
+                    <option value={subject.id} key={subject.id}>
+                      {subject.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="cards-count-label">
+                Cards
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={maxCards}
+                  onChange={(e) => setMaxCards(clampMaxCards(Number(e.target.value)))}
+                />
+              </label>
+            </div>
+            
+            <div className="quick-subject-row">
               <input
-                type="number"
-                min={1}
-                max={20}
-                value={maxCards}
-                onChange={(event) => setMaxCards(clampMaxCards(Number(event.target.value)))}
+                type="text"
+                value={newSubjectName}
+                onChange={(e) => setNewSubjectName(e.target.value)}
+                placeholder="Criar novo assunto..."
+              />
+              <button onClick={handleCreateSubject} disabled={isWorking || !newSubjectName.trim()}>
+                Criar
+              </button>
+            </div>
+
+            <label className="content-textarea-label">
+              Conteudo para extracao
+              <textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder="Cole um resumo, trecho de aula, anotacao ou texto aqui para o Mestre gerar flashcards."
+                maxLength={20000}
               />
             </label>
           </div>
+        </div>
+      )}
 
-          <label>
-            Conteudo para estudar
-            <textarea
-              value={content}
-              onChange={(event) => setContent(event.target.value)}
-              placeholder="Cole aqui uma anotacao, resumo, trecho de aula ou texto que voce quer transformar em flashcards."
-              maxLength={20000}
-            />
-          </label>
-
-          <button className="professor-primary-button" type="submit" disabled={isWorking || isLoading}>
-            <DashboardIcon name="spark" />
-            {isWorking ? "Pensando..." : "Pedir ao Professor"}
-          </button>
-        </form>
-
-        <aside className="professor-side-panel">
-          <div className="panel-heading compact">
-            <h2>
-              <DashboardIcon name="book" />
-              Assunto rapido
-            </h2>
-          </div>
-
-          <label>
-            Nome do assunto
-            <input
-              type="text"
-              value={newSubjectName}
-              onChange={(event) => setNewSubjectName(event.target.value)}
-              placeholder="Ex: Redes de computadores"
-              maxLength={120}
-            />
-          </label>
-
-          <button type="button" onClick={handleCreateSubject} disabled={isWorking}>
-            <DashboardIcon name="plus" />
-            Criar assunto
-          </button>
-
-          <div className="professor-context-card">
-            <span>Contexto atual</span>
-            <strong>{selectedSubject ? selectedSubject.name : "Nenhum assunto selecionado"}</strong>
-            <p>{subjects.length} assunto(s) disponivel(is)</p>
-          </div>
-        </aside>
-      </section>
-
-      <section className="professor-results-grid">
-        <article className="professor-chat-panel">
-          <div className="panel-heading compact">
-            <h2>
-              <DashboardIcon name="note" />
-              Conversa
-            </h2>
-          </div>
-
-          <div className="professor-messages">
-            {messages.map((message) => (
-              <div className={`professor-message ${message.role}`} key={message.id}>
-                <span>{message.role === "professor" ? "Professor" : "Voce"}</span>
-                <p>{message.text}</p>
-              </div>
-            ))}
-          </div>
-        </article>
-
-        <article className="professor-suggestions-panel">
-          <div className="panel-heading compact">
-            <h2>
-              <DashboardIcon name="cards" />
-              Sugestoes
-            </h2>
-            {hasSuggestions ? (
-              <button type="button" onClick={handleSaveSuggestions} disabled={isSavingCards}>
-                <DashboardIcon name="check" />
-                {isSavingCards ? "Salvando..." : "Salvar selecionados"}
-              </button>
-            ) : null}
-          </div>
-
-          {hasSuggestions ? (
-            <div className="professor-suggestion-list">
-              {suggestions.map((suggestion, index) => (
-                <label className="professor-suggestion-card" key={`${suggestion.question}-${index}`}>
-                  <input
-                    type="checkbox"
-                    checked={selectedIndexes.includes(index)}
-                    onChange={() => toggleSuggestion(index)}
-                  />
-                  <div>
-                    <span className={`difficulty-pill tone-${suggestion.difficulty.toLowerCase()}`}>
-                      {getDifficultyLabel(suggestion.difficulty)}
-                    </span>
-                    <h3>{suggestion.question}</h3>
-                    <p>{suggestion.answer}</p>
-                  </div>
-                </label>
+      {/* Message Feed */}
+      <div className="mestre-feed">
+        {messages.map((message) => (
+          <div className={`mestre-chat-bubble-container ${message.role}`} key={message.id}>
+            <div className="mestre-sender-label">
+              {message.role === "mestre" ? "Mestre" : "Voce"}
+            </div>
+            <div className="mestre-chat-bubble">
+              {message.text.split('\n\n').map((paragraph, idx) => (
+                <p key={idx}>{paragraph}</p>
               ))}
             </div>
-          ) : (
-            <div className="empty-state professor-empty">
-              <DashboardIcon name="professor" />
-              <strong>Nenhuma sugestao ainda</strong>
-              <p>Escolha um assunto, cole um conteudo e peca ao Professor para gerar flashcards.</p>
+
+            {/* Render flashcards inline within the chat if any */}
+            {message.suggestions && message.suggestions.length > 0 && (
+              <div className="mestre-inline-suggestions">
+                {message.saved ? (
+                  <div className="mestre-saved-status">
+                    <DashboardIcon name="check" />
+                    <span>Flashcards salvos na sua biblioteca!</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="suggestions-cards-list">
+                      {message.suggestions.map((suggestion, idx) => {
+                        const isChecked = (selectedIndexesByMsg[message.id] ?? []).includes(idx);
+                        return (
+                          <label className="mestre-suggestion-card" key={idx}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleSuggestionCheck(message.id, idx)}
+                            />
+                            <div className="card-suggestion-body">
+                              <span className={`difficulty-pill tone-${suggestion.difficulty.toLowerCase()}`}>
+                                {getDifficultyLabel(suggestion.difficulty)}
+                              </span>
+                              <h5>{suggestion.question}</h5>
+                              <p>{suggestion.answer}</p>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <button
+                      className="mestre-save-cards-button"
+                      onClick={() => handleSaveFlashcards(message.id, message.suggestions!)}
+                      disabled={isSavingCards[message.id]}
+                    >
+                      <DashboardIcon name="check" />
+                      {isSavingCards[message.id] ? "Salvando..." : "Salvar Flashcards Selecionados"}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+        {isWorking && (
+          <div className="mestre-chat-bubble-container mestre thinking">
+            <div className="mestre-sender-label">Mestre</div>
+            <div className="mestre-chat-bubble">
+              <div className="mestre-loader">
+                <span />
+                <span />
+                <span />
+              </div>
             </div>
-          )}
-        </article>
-      </section>
-    </div>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Suggestion Chips */}
+      {messages.length === 1 && !isWorking && (
+        <div className="mestre-chips">
+          <button onClick={() => handleSuggestionClick("Crie assunto Seguranca da informacao")}>
+            <DashboardIcon name="plus" />
+            <span>Cria assunto Seguranca da informacao</span>
+          </button>
+          <button onClick={() => handleSuggestionClick("Explique o que e criptografia simetrica")}>
+            <DashboardIcon name="spark" />
+            <span>O que e criptografia simetrica?</span>
+          </button>
+          <button onClick={() => handleSuggestionClick("Gere flashcards sobre o conteudo anexado")}>
+            <DashboardIcon name="cards" />
+            <span>Gere flashcards sobre o conteudo</span>
+          </button>
+        </div>
+      )}
+
+      {/* Footer Chat Input */}
+      <form className="mestre-footer" onSubmit={handleSendMessage}>
+        <button
+          className={`mestre-paperclip ${showContextPanel || content.trim() ? "active" : ""}`}
+          type="button"
+          onClick={() => setShowContextPanel(!showContextPanel)}
+          title="Anexar conteudo ou escolher assunto"
+        >
+          <DashboardIcon name="professor" />
+          {content.trim() && <span className="attachment-indicator" />}
+        </button>
+        <input
+          type="text"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder={showContextPanel ? "Gere cards ou faca uma pergunta..." : "Pergunte ao Mestre..."}
+          maxLength={1000}
+        />
+        <button className="mestre-submit-button" type="submit" disabled={isWorking || (!prompt.trim() && !content.trim())}>
+          <DashboardIcon name="rocket" />
+        </button>
+      </form>
+    </aside>
   );
 }
 
@@ -3303,10 +3385,6 @@ function getSectionSubtitle(section: HomeSection) {
 
   if (section === "flashcards") {
     return "Crie cards de pergunta e resposta por assunto.";
-  }
-
-  if (section === "professor") {
-    return "Peça ajuda para criar assuntos e gerar flashcards a partir do seu conteudo.";
   }
 
   if (section === "reviews") {
