@@ -1,5 +1,7 @@
 package com.paulogandolfi.studyplatform.tasks.service;
 
+import com.paulogandolfi.studyplatform.goals.entity.Goal;
+import com.paulogandolfi.studyplatform.goals.repository.GoalRepository;
 import com.paulogandolfi.studyplatform.tasks.dto.TaskRequest;
 import com.paulogandolfi.studyplatform.tasks.dto.TaskResponse;
 import com.paulogandolfi.studyplatform.tasks.entity.StudyTask;
@@ -20,18 +22,26 @@ public class StudyTaskService {
 
     private final StudyTaskRepository studyTaskRepository;
     private final UserRepository userRepository;
+    private final GoalRepository goalRepository;
 
-    public StudyTaskService(StudyTaskRepository studyTaskRepository, UserRepository userRepository) {
+    public StudyTaskService(
+            StudyTaskRepository studyTaskRepository,
+            UserRepository userRepository,
+            GoalRepository goalRepository
+    ) {
         this.studyTaskRepository = studyTaskRepository;
         this.userRepository = userRepository;
+        this.goalRepository = goalRepository;
     }
 
     @Transactional
     public TaskResponse create(UUID userId, TaskRequest request) {
         User user = findUser(userId);
         demoteCurrentPrimaryTask(userId, null, isPrimaryTask(request));
+        Goal goal = findGoal(userId, request.goalId());
         StudyTask task = new StudyTask(
                 user,
+                goal,
                 normalizeTitle(request),
                 normalizeDescription(request),
                 request.status(),
@@ -58,6 +68,7 @@ public class StudyTaskService {
         task.setDescription(normalizeDescription(request));
         task.setStatus(request.status());
         task.setPrimaryTask(isPrimaryTask(request));
+        task.setGoal(findGoal(userId, request.goalId()));
 
         return TaskResponse.from(task);
     }
@@ -84,6 +95,15 @@ public class StudyTaskService {
     private StudyTask findTask(UUID taskId, UUID userId) {
         return studyTaskRepository.findByIdAndUser_Id(taskId, userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Task not found"));
+    }
+
+    private Goal findGoal(UUID userId, UUID goalId) {
+        if (goalId == null) {
+            return null;
+        }
+
+        return goalRepository.findByIdAndUser_Id(goalId, userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Goal not found"));
     }
 
     private void demoteCurrentPrimaryTask(UUID userId, UUID taskId, boolean nextPrimaryTask) {

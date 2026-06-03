@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
+import java.util.UUID;
+
 public record TaskRequest(
         @NotBlank
         @Size(max = 160)
@@ -16,6 +18,8 @@ public record TaskRequest(
         @NotNull
         TaskStatus status,
 
-        Boolean primaryTask
+        Boolean primaryTask,
+
+        UUID goalId
 ) {
 }

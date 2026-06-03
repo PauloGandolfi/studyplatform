@@ -9,6 +9,7 @@ import java.util.UUID;
 public record TaskResponse(
         UUID id,
         UUID userId,
+        UUID goalId,
         String title,
         String description,
         TaskStatus status,
@@ -21,6 +22,7 @@ public record TaskResponse(
         return new TaskResponse(
                 task.getId(),
                 task.getUser().getId(),
+                task.getGoal() == null ? null : task.getGoal().getId(),
                 task.getTitle(),
                 task.getDescription(),
                 task.getStatus(),
