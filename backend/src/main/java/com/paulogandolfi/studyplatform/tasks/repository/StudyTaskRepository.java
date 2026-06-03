@@ -11,6 +11,8 @@ public interface StudyTaskRepository extends JpaRepository<StudyTask, UUID> {
 
     List<StudyTask> findAllByUser_IdOrderByPrimaryTaskDescCreatedAtAsc(UUID userId);
 
+    List<StudyTask> findAllByUser_IdAndGoal_IdOrderByPrimaryTaskDescCreatedAtAsc(UUID userId, UUID goalId);
+
     List<StudyTask> findAllByUser_IdAndPrimaryTaskTrue(UUID userId);
 
     Optional<StudyTask> findByIdAndUser_Id(UUID id, UUID userId);

@@ -1,5 +1,6 @@
 package com.paulogandolfi.studyplatform.tasks.entity;
 
+import com.paulogandolfi.studyplatform.goals.entity.Goal;
 import com.paulogandolfi.studyplatform.users.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -44,6 +45,10 @@ public class StudyTask {
     @Column(name = "primary_task", nullable = false)
     private boolean primaryTask;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "goal_id")
+    private Goal goal;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -54,7 +59,12 @@ public class StudyTask {
     }
 
     public StudyTask(User user, String title, String description, TaskStatus status, boolean primaryTask) {
+        this(user, null, title, description, status, primaryTask);
+    }
+
+    public StudyTask(User user, Goal goal, String title, String description, TaskStatus status, boolean primaryTask) {
         this.user = user;
+        this.goal = goal;
         this.title = title;
         this.description = description;
         this.status = status;
@@ -111,6 +121,14 @@ public class StudyTask {
 
     public void setPrimaryTask(boolean primaryTask) {
         this.primaryTask = primaryTask;
+    }
+
+    public Goal getGoal() {
+        return goal;
+    }
+
+    public void setGoal(Goal goal) {
+        this.goal = goal;
     }
 
     public LocalDateTime getCreatedAt() {

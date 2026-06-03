@@ -1,5 +1,6 @@
 export type HomeSection =
   | "dashboard"
+  | "goals"
   | "tasks"
   | "subjects"
   | "notes"
@@ -15,38 +16,41 @@ export const navItems: Array<{
   section: HomeSection;
 }> = [
   { label: "Dashboard", icon: "dashboard", section: "dashboard" },
-  { label: "Missões", icon: "mission", section: "tasks" },
+  { label: "Objetivos", icon: "rocket", section: "goals" },
+  { label: "Missoes", icon: "mission", section: "tasks" },
   { label: "Assuntos", icon: "book", section: "subjects" },
-  { label: "Anotações", icon: "note", section: "notes" },
+  { label: "Anotacoes", icon: "note", section: "notes" },
   { label: "Flashcards", icon: "cards", section: "flashcards" },
-  { label: "Revisões", icon: "calendar", section: "reviews" },
-  { label: "Estatísticas", icon: "chart", section: "stats" },
+  { label: "Revisoes", icon: "calendar", section: "reviews" },
+  { label: "Estatisticas", icon: "chart", section: "stats" },
   { label: "Perfil", icon: "user", section: "profile" },
-  { label: "Configurações", icon: "settings", section: "settings" }
+  { label: "Configuracoes", icon: "settings", section: "settings" }
 ];
 
 const placeholderTitles: Record<HomeSection, string> = {
   dashboard: "Dashboard",
-  tasks: "Missões",
+  goals: "Objetivos",
+  tasks: "Missoes",
   subjects: "Assuntos",
-  notes: "Anotações",
+  notes: "Anotacoes",
   flashcards: "Flashcards",
-  reviews: "Revisões",
-  stats: "Estatísticas",
+  reviews: "Revisoes",
+  stats: "Estatisticas",
   profile: "Perfil",
-  settings: "Configurações"
+  settings: "Configuracoes"
 };
 
 const placeholderCopy: Record<HomeSection, string> = {
   dashboard: "",
+  goals: "",
   tasks: "",
   subjects: "",
   notes: "",
-  flashcards: "Flashcards entram depois que suas anotações estiverem organizadas.",
-  reviews: "Revisões vão usar seu progresso e seus cards para montar a fila diária.",
-  stats: "Estatísticas vão consolidar tempo de estudo, revisões e criação de conteúdo.",
-  profile: "Perfil vai reunir dados da conta e preferências de estudo.",
-  settings: "Configurações vão concentrar ajustes do aplicativo."
+  flashcards: "Flashcards entram depois que suas anotacoes estiverem organizadas.",
+  reviews: "Revisoes vao usar seu progresso e seus cards para montar a fila diaria.",
+  stats: "Estatisticas vao consolidar tempo de estudo, revisoes e criacao de conteudo.",
+  profile: "Perfil vai reunir dados da conta e preferencias de estudo.",
+  settings: "Configuracoes vao concentrar ajustes do aplicativo."
 };
 
 export function getSectionLabel(section: HomeSection) {
@@ -54,16 +58,20 @@ export function getSectionLabel(section: HomeSection) {
 }
 
 export function getSectionSubtitle(section: HomeSection) {
+  if (section === "goals") {
+    return "Transforme metas maiores em uma jornada com prazo, horas de estudo e acompanhamento do Mentor.";
+  }
+
   if (section === "tasks") {
-    return "Defina uma missão principal, acompanhe passos secundários e avance por status.";
+    return "Defina uma missao principal, acompanhe passos secundarios e avance por status.";
   }
 
   if (section === "subjects") {
-    return "Crie e mantenha os assuntos que organizam suas anotações.";
+    return "Crie e mantenha os assuntos que organizam suas anotacoes.";
   }
 
   if (section === "notes") {
-    return "Crie, filtre e revise suas anotações por assunto.";
+    return "Crie, filtre e revise suas anotacoes por assunto.";
   }
 
   if (section === "flashcards") {
@@ -74,7 +82,7 @@ export function getSectionSubtitle(section: HomeSection) {
     return "Revise os cards pendentes e mantenha a agenda em dia.";
   }
 
-  return placeholderCopy[section] || "Pronto para mais uma sessão de estudos?";
+  return placeholderCopy[section] || "Pronto para mais uma sessao de estudos?";
 }
 
 export function getPlaceholderCopy(section: HomeSection) {

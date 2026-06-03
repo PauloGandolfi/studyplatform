@@ -1,5 +1,6 @@
 package com.paulogandolfi.studyplatform.sessions.entity;
 
+import com.paulogandolfi.studyplatform.goals.entity.Goal;
 import com.paulogandolfi.studyplatform.users.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -38,6 +39,10 @@ public class StudySession {
     @Column(name = "duration_seconds", nullable = false)
     private Integer durationSeconds;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "goal_id")
+    private Goal goal;
+
     @Column(name = "session_date", nullable = false)
     private LocalDate sessionDate;
 
@@ -48,11 +53,16 @@ public class StudySession {
     }
 
     public StudySession(User user, Integer cardsReviewed, Integer correctAnswers, LocalDate sessionDate) {
-        this(user, cardsReviewed, correctAnswers, 0, sessionDate);
+        this(user, null, cardsReviewed, correctAnswers, 0, sessionDate);
     }
 
     public StudySession(User user, Integer cardsReviewed, Integer correctAnswers, Integer durationSeconds, LocalDate sessionDate) {
+        this(user, null, cardsReviewed, correctAnswers, durationSeconds, sessionDate);
+    }
+
+    public StudySession(User user, Goal goal, Integer cardsReviewed, Integer correctAnswers, Integer durationSeconds, LocalDate sessionDate) {
         this.user = user;
+        this.goal = goal;
         this.cardsReviewed = cardsReviewed;
         this.correctAnswers = correctAnswers;
         this.durationSeconds = durationSeconds;
@@ -82,6 +92,10 @@ public class StudySession {
 
     public Integer getDurationSeconds() {
         return durationSeconds;
+    }
+
+    public Goal getGoal() {
+        return goal;
     }
 
     public LocalDate getSessionDate() {

@@ -1,9 +1,11 @@
 import { CSSProperties, ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import spaceImage from "./assets/space-login.png";
 import studyPlatformLogo from "./assets/study-platform-logo.png";
+import GoalsPage from "./features/goals/GoalsPage";
 import { apiRequest, getErrorMessage, readResponse, unauthorizedEventName } from "./shared/api/client";
 import { clearAuthStorage, getStoredUserName, persistAuthSession } from "./shared/lib/auth-storage";
 import { getPlaceholderCopy, getSectionLabel, getSectionSubtitle, HomeSection, navItems } from "./features/home/config/navigation";
+import { Goal, MentorCourseRecommendation, StudyRecommendations } from "./features/goals/types";
 
 type AuthMode = "login" | "register" | "forgot" | "reset";
 type AppView = "auth" | "home";
@@ -69,6 +71,7 @@ type ProfessorMessage = {
 type StudyTask = {
   id: string;
   userId: string;
+  goalId: string | null;
   title: string;
   description: string | null;
   status: TaskStatus;
@@ -120,6 +123,7 @@ type TaskFormValues = {
   description: string;
   status: TaskStatus;
   primaryTask: boolean;
+  goalId: string;
 };
 
 type FlashcardFormValues = {
@@ -153,7 +157,8 @@ const emptyTaskForm: TaskFormValues = {
   title: "",
   description: "",
   status: "TODO",
-  primaryTask: false
+  primaryTask: false,
+  goalId: ""
 };
 
 const emptyFlashcardForm: FlashcardFormValues = {
@@ -226,7 +231,8 @@ function buildTaskForm(task: StudyTask | null, primaryTask = false): TaskFormVal
     title: task.title,
     description: task.description ?? "",
     status: task.status,
-    primaryTask: task.primaryTask
+    primaryTask: task.primaryTask,
+    goalId: task.goalId ?? ""
   };
 }
 
@@ -1040,11 +1046,11 @@ function HomePage({
               className={`mestre-toggle-button ${isMestreOpen ? "active" : ""}`}
               type="button"
               onClick={() => setIsMestreOpen(!isMestreOpen)}
-              title="Conversar com o Mestre"
-              aria-label="Abrir assistente Mestre"
+              title="Conversar com o Mentor"
+              aria-label="Abrir assistente Mentor"
             >
               <DashboardIcon name="spark" />
-              <span>Mestre</span>
+              <span>Mentor</span>
             </button>
             <button className="profile-button" type="button" aria-label="Perfil">
               {initials}
@@ -1065,6 +1071,8 @@ function HomePage({
           <FlashcardsPage />
         ) : currentSection === "reviews" ? (
           <ReviewSessionPage />
+        ) : currentSection === "goals" ? (
+          <GoalsPage />
         ) : currentSection === "dashboard" ? (
           <DashboardHome />
         ) : (
@@ -1083,6 +1091,8 @@ function HomePage({
 
 function DashboardHome() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [selectedGoalId, setSelectedGoalId] = useState("");
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isStudying, setIsStudying] = useState(false);
@@ -1097,8 +1107,13 @@ function DashboardHome() {
     setFeedback(null);
 
     try {
-      const dashboardMetrics = await apiRequest<DashboardMetrics>("/metrics/dashboard");
+      const [dashboardMetrics, goalsData] = await Promise.all([
+        apiRequest<DashboardMetrics>("/metrics/dashboard"),
+        apiRequest<Goal[]>("/goals")
+      ]);
       setMetrics(dashboardMetrics);
+      setGoals(goalsData);
+      setSelectedGoalId((current) => current && goalsData.some((goal) => goal.id === current) ? current : goalsData[0]?.id ?? "");
     } catch (error) {
       setFeedback({
         type: "error",
@@ -1218,7 +1233,7 @@ function DashboardHome() {
     try {
       const response = await apiRequest<StudyTimeResponse>("/study-time", {
         method: "POST",
-        body: JSON.stringify({ durationSeconds: elapsedSeconds })
+        body: JSON.stringify({ durationSeconds: elapsedSeconds, goalId: selectedGoalId || undefined })
       });
 
       setMetrics((current) => current ? { ...current, totalStudySeconds: response.totalStudySeconds } : current);
@@ -1274,6 +1289,19 @@ function DashboardHome() {
                 </button>
               ) : null}
             </div>
+            {goals.length > 0 ? (
+              <label className="study-goal-select">
+                <span>Vincular sessao a um objetivo</span>
+                <select value={selectedGoalId} onChange={(event) => setSelectedGoalId(event.target.value)}>
+                  <option value="">Estudo geral</option>
+                  {goals.map((goal) => (
+                    <option value={goal.id} key={goal.id}>
+                      {goal.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
           </div>
 
           <aside className={`study-timer-panel ${isStudying ? "active" : ""} ${isStudyPaused ? "paused" : ""}`} aria-label="Contador de horas de estudo">
@@ -1293,6 +1321,11 @@ function DashboardHome() {
               <span>Horas totais</span>
               <b>{formatStudyDuration(displayTotalStudySeconds)}</b>
             </div>
+            <small className="study-goal-hint">
+              {selectedGoalId
+                ? "As horas desta sessao vao alimentar o progresso do objetivo selecionado."
+                : "Sem objetivo selecionado, esta sessao entra apenas no total geral de horas."}
+            </small>
           </aside>
         </div>
       </section>
@@ -1420,6 +1453,7 @@ function DashboardHome() {
 
 function TasksPage() {
   const [tasks, setTasks] = useState<StudyTask[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [editingTask, setEditingTask] = useState<StudyTask | null>(null);
   const [formValues, setFormValues] = useState<TaskFormValues>(emptyTaskForm);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
@@ -1440,12 +1474,16 @@ function TasksPage() {
     setIsLoading(true);
 
     try {
-      const tasksData = await apiRequest<StudyTask[]>("/tasks");
+      const [tasksData, goalsData] = await Promise.all([
+        apiRequest<StudyTask[]>("/tasks"),
+        apiRequest<Goal[]>("/goals")
+      ]);
       if (!Array.isArray(tasksData)) {
         throw new Error("Resposta invalida ao carregar suas missoes.");
       }
 
       setTasks(tasksData);
+      setGoals(goalsData);
       setFeedback(null);
     } catch (error) {
       setFeedback({
@@ -1499,7 +1537,8 @@ function TasksPage() {
       title: formValues.title.trim(),
       description: formValues.description.trim(),
       status: formValues.status,
-      primaryTask: formValues.primaryTask
+      primaryTask: formValues.primaryTask,
+      goalId: formValues.goalId || null
     };
 
     try {
@@ -1575,6 +1614,8 @@ function TasksPage() {
   }
 
   function renderTaskCard(task: StudyTask, variant: "primary" | "secondary") {
+    const linkedGoal = task.goalId ? goals.find((goal) => goal.id === task.goalId) : null;
+
     return (
       <article className={`task-card ${variant}`} key={task.id}>
         <div className="task-card-heading">
@@ -1584,6 +1625,7 @@ function TasksPage() {
 
         <h3>{task.title}</h3>
         {task.description ? <p>{task.description}</p> : <p>Sem descricao adicionada.</p>}
+        {linkedGoal ? <small className="task-goal-chip">Objetivo: {linkedGoal.title}</small> : null}
 
         <div className="task-card-actions">
           {task.status !== "DONE" ? (
@@ -1730,6 +1772,21 @@ function TasksPage() {
                 placeholder="Detalhe o objetivo da missao..."
                 maxLength={1000}
               />
+            </label>
+
+            <label>
+              Objetivo relacionado
+              <select
+                value={formValues.goalId}
+                onChange={(event) => updateTaskField("goalId", event.target.value)}
+              >
+                <option value="">Nenhum objetivo</option>
+                {goals.map((goal) => (
+                  <option value={goal.id} key={goal.id}>
+                    {goal.title}
+                  </option>
+                ))}
+              </select>
             </label>
 
             <label>
@@ -2338,6 +2395,8 @@ type MestreMessage = {
   role: "user" | "mestre";
   text: string;
   suggestions?: AiFlashcardSuggestion[];
+  courseRecommendations?: MentorCourseRecommendation[];
+  mentorNotice?: string;
   saved?: boolean;
 };
 
@@ -2351,7 +2410,9 @@ function MestreSidebar({
   userName: string;
 }) {
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [selectedSubjectId, setSelectedSubjectId] = useState("");
+  const [selectedGoalId, setSelectedGoalId] = useState("");
   const [newSubjectName, setNewSubjectName] = useState("");
   
   // Context attachment settings
@@ -2365,7 +2426,7 @@ function MestreSidebar({
     {
       id: 1,
       role: "mestre",
-      text: `Ola, ${userName}! Sou o Mestre, seu assistente pessoal de estudos. Posso tirar suas duvidas, criar assuntos ou gerar flashcards para voce revisar. Como posso te ajudar hoje?`
+      text: `Ola, ${userName}! Sou o Mentor, seu assistente pessoal de estudos. Posso ajudar com objetivos, recomendar cursos e gerar flashcards para voce revisar. Como posso te ajudar hoje?`
     }
   ]);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
@@ -2385,17 +2446,24 @@ function MestreSidebar({
   const loadSubjects = useCallback(async () => {
     setIsLoadingSubjects(true);
     try {
-      const data = await apiRequest<Subject[]>("/subjects");
-      setSubjects(data);
-      if (data.length > 0 && !selectedSubjectId) {
-        setSelectedSubjectId(data[0].id);
+      const [subjectsData, goalsData] = await Promise.all([
+        apiRequest<Subject[]>("/subjects"),
+        apiRequest<Goal[]>("/goals")
+      ]);
+      setSubjects(subjectsData);
+      setGoals(goalsData);
+      if (subjectsData.length > 0 && !selectedSubjectId) {
+        setSelectedSubjectId(subjectsData[0].id);
+      }
+      if (goalsData.length > 0 && !selectedGoalId) {
+        setSelectedGoalId(goalsData[0].id);
       }
     } catch (error) {
       console.error("Erro ao carregar assuntos:", error);
     } finally {
       setIsLoadingSubjects(false);
     }
-  }, [selectedSubjectId]);
+  }, [selectedGoalId, selectedSubjectId]);
 
   useEffect(() => {
     if (isOpen) {
@@ -2435,14 +2503,22 @@ function MestreSidebar({
     });
   }, []);
 
-  const addMessage = (role: "user" | "mestre", text: string, suggestions?: AiFlashcardSuggestion[]) => {
+  const addMessage = (
+    role: "user" | "mestre",
+    text: string,
+    suggestions?: AiFlashcardSuggestion[],
+    courseRecommendations?: MentorCourseRecommendation[],
+    mentorNotice?: string
+  ) => {
     setMessages((current) => [
       ...current,
       {
         id: Date.now() + current.length,
         role,
         text,
-        suggestions
+        suggestions,
+        courseRecommendations,
+        mentorNotice
       }
     ]);
   };
@@ -2509,8 +2585,31 @@ function MestreSidebar({
         return;
       }
 
+      const lowerPrompt = trimmedPrompt.toLowerCase();
+      const selectedGoal = goals.find((goal) => goal.id === selectedGoalId) ?? null;
+
+      if (!hasContent && (lowerPrompt.includes("curso") || lowerPrompt.includes("trilha") || lowerPrompt.includes("estudar") || lowerPrompt.includes("aprender"))) {
+        const recommendationResponse = await apiRequest<StudyRecommendations>("/mentor/recommendations", {
+          method: "POST",
+          body: JSON.stringify({
+            topic: trimmedPrompt,
+            learningGoal: selectedGoal?.title ?? trimmedPrompt,
+            currentLevel: selectedGoal?.currentLevel ?? "iniciante"
+          })
+        });
+
+        addMessage(
+          "mestre",
+          `Separei uma curadoria inicial para "${recommendationResponse.subject}". Os cursos gratuitos aparecem primeiro, seguidos por algumas opcoes pagas.`,
+          undefined,
+          recommendationResponse.recommendations,
+          recommendationResponse.mentorNotice
+        );
+        return;
+      }
+
       // If they click generate cards or there is content, trigger flashcard generation
-      if (hasContent || trimmedPrompt.toLowerCase().includes("flashcard") || trimmedPrompt.toLowerCase().includes("card")) {
+      if (hasContent || lowerPrompt.includes("flashcard") || lowerPrompt.includes("card")) {
         const activeSubject = selectedSubjectId
           ? subjects.find((s) => s.id === selectedSubjectId)
           : subjects[0] || null;
@@ -2560,13 +2659,15 @@ function MestreSidebar({
       const chatResponse = await apiRequest<{ response: string }>("/ai/chat", {
         method: "POST",
         body: JSON.stringify({
-          message: trimmedPrompt
+          message: selectedGoal
+            ? `Objetivo atual: ${selectedGoal.title}\nNivel atual: ${selectedGoal.currentLevel}\nResumo: ${selectedGoal.mentorSummary}\n\nMensagem do usuario: ${trimmedPrompt}`
+            : trimmedPrompt
         })
       });
 
       addMessage("mestre", chatResponse.response);
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : "Nao foi possivel conectar ao Mestre.";
+      const errorMsg = error instanceof Error ? error.message : "Nao foi possivel conectar ao Mentor.";
       addMessage("mestre", `Erro: ${errorMsg}`);
     } finally {
       setIsWorking(false);
@@ -2637,7 +2738,7 @@ function MestreSidebar({
   if (!isOpen) return null;
 
   return (
-    <aside className="mestre-sidebar" aria-label="Mestre AI Chat Sidebar">
+    <aside className="mestre-sidebar" aria-label="Mentor AI Chat Sidebar">
       <ToastFeedback feedback={feedback} onClose={() => setFeedback(null)} />
       <header className="mestre-header">
         <div className="mestre-title-block">
@@ -2645,14 +2746,28 @@ function MestreSidebar({
             <DashboardIcon name="spark" />
           </div>
           <div>
-            <h3>Mestre</h3>
-            <span className="mestre-subtitle">Assistente de Estudos</span>
+            <h3>Mentor</h3>
+            <span className="mestre-subtitle">Assistente de Objetivos e Estudos</span>
           </div>
         </div>
         <button className="mestre-close-button" type="button" onClick={onClose} aria-label="Fechar chat">
           <DashboardIcon name="close" />
         </button>
       </header>
+
+      <div className="mentor-goal-context">
+        <label>
+          Contexto do objetivo
+          <select value={selectedGoalId} onChange={(event) => setSelectedGoalId(event.target.value)}>
+            <option value="">Sem objetivo selecionado</option>
+            {goals.map((goal) => (
+              <option key={goal.id} value={goal.id}>
+                {goal.title}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
 
       {/* Attachment Context Panel */}
       {showContextPanel && (
@@ -2709,7 +2824,7 @@ function MestreSidebar({
               <textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                placeholder="Cole um resumo, trecho de aula, anotacao ou texto aqui para o Mestre gerar flashcards."
+                placeholder="Cole um resumo, trecho de aula, anotacao ou texto aqui para o Mentor gerar flashcards."
                 maxLength={20000}
               />
             </label>
@@ -2722,7 +2837,7 @@ function MestreSidebar({
         {messages.map((message) => (
           <div className={`mestre-chat-bubble-container ${message.role}`} key={message.id}>
             <div className="mestre-sender-label">
-              {message.role === "mestre" ? "Mestre" : "Voce"}
+              {message.role === "mestre" ? "Mentor" : "Voce"}
             </div>
             <div className="mestre-chat-bubble">
               <MestreMessageText
@@ -2734,6 +2849,27 @@ function MestreSidebar({
                 onProgress={scrollMessagesToBottom}
               />
             </div>
+
+            {message.courseRecommendations && message.courseRecommendations.length > 0 ? (
+              <div className="mentor-recommendations">
+                {message.courseRecommendations.map((recommendation, index) => (
+                  <article className="mentor-recommendation-card" key={`${recommendation.link}-${index}`}>
+                    <div className="mentor-recommendation-meta">
+                      <span className={`goal-priority-pill tone-${recommendation.pricing.toLowerCase() === "free" ? "low" : "high"}`}>
+                        {recommendation.pricing === "FREE" ? "Gratuito" : "Pago"}
+                      </span>
+                      <small>{recommendation.platform}</small>
+                    </div>
+                    <strong>{recommendation.title}</strong>
+                    <p>{recommendation.reason}</p>
+                    <a href={recommendation.link} target="_blank" rel="noreferrer">
+                      Abrir curso
+                    </a>
+                  </article>
+                ))}
+                {message.mentorNotice ? <small className="mentor-recommendation-note">{message.mentorNotice}</small> : null}
+              </div>
+            ) : null}
 
             {/* Render flashcards inline within the chat if any */}
             {message.suggestions && message.suggestions.length > 0 && (
@@ -2782,7 +2918,7 @@ function MestreSidebar({
         ))}
         {isWorking && (
           <div className="mestre-chat-bubble-container mestre thinking">
-            <div className="mestre-sender-label">Mestre</div>
+            <div className="mestre-sender-label">Mentor</div>
             <div className="mestre-chat-bubble">
               <div className="mestre-loader">
                 <span />
@@ -2802,9 +2938,9 @@ function MestreSidebar({
             <DashboardIcon name="plus" />
             <span>Cria assunto Seguranca da informacao</span>
           </button>
-          <button onClick={() => handleSuggestionClick("Explique o que e criptografia simetrica")}>
+          <button onClick={() => handleSuggestionClick("Quais cursos seguir para aprender Spring Boot?")}>
             <DashboardIcon name="spark" />
-            <span>O que e criptografia simetrica?</span>
+            <span>Quais cursos seguir para aprender Spring Boot?</span>
           </button>
           <button onClick={() => handleSuggestionClick("Gere flashcards sobre o conteudo anexado")}>
             <DashboardIcon name="cards" />
@@ -2828,7 +2964,7 @@ function MestreSidebar({
           type="text"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder={showContextPanel ? "Gere cards ou faca uma pergunta..." : "Pergunte ao Mestre..."}
+          placeholder={showContextPanel ? "Gere cards ou faca uma pergunta..." : "Pergunte ao Mentor..."}
           maxLength={1000}
         />
         <button className="mestre-submit-button" type="submit" disabled={isWorking || (!prompt.trim() && !content.trim())}>

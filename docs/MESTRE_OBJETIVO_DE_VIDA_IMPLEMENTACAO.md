@@ -554,31 +554,31 @@ Fica para depois:
 
 ### Descoberta e definicao
 
-- [ ] Definir o nome oficial da feature: `Objetivos`, `Jornadas` ou `Modo Objetivo de Vida`
-- [ ] Definir o rename oficial de `Mestre` para `Mentor`
-- [ ] Definir se o objetivo pode ter prazo obrigatorio ou opcional
-- [ ] Definir se o usuario pode ter mais de um objetivo ativo
-- [ ] Definir a regra inicial de calculo de progresso
-- [ ] Definir se pilares serao entidades novas ou assunto reutilizado
-- [ ] Definir quais partes serao geradas por IA e quais serao deterministicas
-- [ ] Definir ate onde a recomendacao de conteudo pode ir sem navegacao externa
-- [ ] Definir o aviso de produto para deixar claro que as recomendacoes nao sao resultados em tempo real
+- [x] Nome oficial da feature: `Objetivos`
+- [x] Rename oficial de `Mestre` para `Mentor`
+- [x] O objetivo pode ter prazo opcional, com ideia de "prazo de validade"
+- [x] O usuario pode ter mais de um objetivo ativo
+- [x] Regra inicial de calculo de progresso: horas de estudo registradas
+- [x] Pilares serao entidades novas na camada de objetivos
+- [x] Partes geradas por IA: plano inicial e busca de quais cursos seguir
+- [x] Recomendacao de conteudo sem navegacao externa: no maximo curadoria com link de acesso ao curso
+- [x] Aviso de produto: recomendacoes do Mentor nao sao resultados em tempo real
 
 ### Modelagem de dados
 
-- [ ] Criar entidade `Goal`
-- [ ] Criar entidade para pilares do objetivo
+- [x] Criar entidade `Goal`
+- [x] Criar entidade para pilares do objetivo
 - [ ] Criar entidade para semanas ou milestones
-- [ ] Definir relacionamento com `StudyTask`
+- [x] Definir relacionamento com `StudyTask`
 - [ ] Definir relacionamento com `Subject`
 - [ ] Definir se flashcards terao vinculacao opcional com objetivo/pilar
-- [ ] Criar migrations SQL
+- [x] Criar migrations SQL
 
 ### Backend
 
-- [ ] Criar endpoints para CRUD de objetivos
-- [ ] Criar endpoint para gerar plano inicial com IA
-- [ ] Criar endpoint para recomendacao estruturada de estudo
+- [x] Criar endpoints para CRUD de objetivos
+- [x] Criar endpoint para gerar plano inicial com IA
+- [x] Criar endpoint para recomendacao estruturada de estudo
 - [ ] Criar endpoint para detalhar objetivo com pilares, metas e progresso
 - [ ] Criar endpoint para replanejamento
 - [ ] Implementar servico de calculo de progresso

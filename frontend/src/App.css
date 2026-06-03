@@ -4085,9 +4085,406 @@ textarea {
     border-left: 1px solid var(--panel-border);
   }
 
-  .home-page.mestre-open .mestre-sidebar {
-    right: 0;
+.home-page.mestre-open .mestre-sidebar {
+  right: 0;
+}
+
+.study-goal-select {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 1rem;
+  max-width: 22rem;
+}
+
+.study-goal-select span,
+.study-goal-hint {
+  color: rgba(241, 244, 255, 0.8);
+  font-size: 0.86rem;
+}
+
+.study-goal-select select,
+.mentor-goal-context select {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(8, 16, 36, 0.62);
+  color: #f6f8ff;
+  padding: 0.78rem 0.9rem;
+}
+
+.mentor-goal-context {
+  padding: 0 1.2rem 1rem;
+}
+
+.mentor-goal-context label {
+  display: grid;
+  gap: 0.45rem;
+  color: rgba(236, 241, 255, 0.8);
+  font-size: 0.85rem;
+}
+
+.mentor-recommendations {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 0.85rem;
+}
+
+.mentor-recommendation-card {
+  display: grid;
+  gap: 0.55rem;
+  background: rgba(16, 24, 48, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 0.95rem 1rem;
+}
+
+.mentor-recommendation-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.mentor-recommendation-card strong {
+  color: #f7f8ff;
+}
+
+.mentor-recommendation-card p,
+.mentor-recommendation-card small,
+.mentor-recommendation-note {
+  color: rgba(220, 228, 255, 0.76);
+  line-height: 1.45;
+}
+
+.mentor-recommendation-card a {
+  color: #86f0d0;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.mentor-recommendation-card a:hover {
+  text-decoration: underline;
+}
+
+.task-goal-chip {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 0.75rem;
+  border-radius: 999px;
+  background: rgba(114, 92, 255, 0.15);
+  color: #7fded7;
+  padding: 0.28rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.goals-page {
+  display: grid;
+  gap: 1.4rem;
+}
+
+.goals-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.8fr);
+  gap: 1rem;
+  padding: 1.5rem;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top right, rgba(88, 154, 255, 0.32), transparent 32%),
+    linear-gradient(135deg, rgba(11, 18, 35, 0.95), rgba(20, 32, 59, 0.92));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.goals-hero span,
+.goals-hero p,
+.goal-formula-note,
+.goal-linked-empty {
+  color: rgba(223, 231, 255, 0.76);
+}
+
+.goals-hero h2,
+.goal-detail-header h2,
+.goal-editor-panel h2 {
+  color: #f8f9ff;
+  margin: 0.3rem 0 0.5rem;
+}
+
+.goals-hero-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.goals-hero-stats article,
+.goal-detail-stats article {
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 1rem;
+}
+
+.goals-hero-stats strong,
+.goal-detail-stats strong {
+  display: block;
+  margin-top: 0.35rem;
+  color: #f8f9ff;
+  font-size: 1.3rem;
+}
+
+.goals-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.7fr) minmax(0, 1.15fr) minmax(320px, 0.95fr);
+  gap: 1rem;
+}
+
+.goals-list-panel,
+.goal-detail-panel,
+.goal-editor-panel,
+.goal-plan-preview {
+  background: rgba(12, 19, 37, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: 1.2rem;
+}
+
+.goals-list {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.goals-list button {
+  display: grid;
+  gap: 0.55rem;
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0.95rem;
+  color: #eff3ff;
+}
+
+.goals-list button.active {
+  border-color: rgba(105, 176, 255, 0.55);
+  background: rgba(48, 83, 155, 0.28);
+}
+
+.goal-list-topline,
+.goal-detail-meta,
+.goal-pillar-heading,
+.goal-detail-actions,
+.goal-linked-task,
+.goal-editor-actions,
+.goal-plan-columns,
+.goal-plan-columns li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.goal-progress-line {
+  width: 100%;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.goal-progress-line span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #7fded7, #5ca8ff);
+}
+
+.goal-priority-pill,
+.goal-risk-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0.24rem 0.72rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.goal-priority-pill.tone-high,
+.goal-risk-pill.tone-at-risk {
+  background: rgba(255, 112, 112, 0.16);
+  color: #ff9f9f;
+}
+
+.goal-priority-pill.tone-medium,
+.goal-risk-pill.tone-on-track {
+  background: rgba(92, 168, 255, 0.16);
+  color: #8bc1ff;
+}
+
+.goal-priority-pill.tone-low,
+.goal-risk-pill.tone-no-deadline {
+  background: rgba(127, 222, 215, 0.16);
+  color: #8aede1;
+}
+
+.goal-risk-pill.tone-completed {
+  background: rgba(112, 255, 163, 0.14);
+  color: #94f2b2;
+}
+
+.goal-detail-panel,
+.goal-editor-panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.goal-detail-header,
+.goal-plan-columns {
+  display: grid;
+  gap: 1rem;
+}
+
+.goal-detail-actions button,
+.goal-editor-actions button,
+.goals-list-panel .panel-heading button {
+  border: none;
+  border-radius: 14px;
+  padding: 0.75rem 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.goal-detail-actions button,
+.goals-list-panel .panel-heading button {
+  background: rgba(255, 255, 255, 0.09);
+  color: #f3f6ff;
+}
+
+.goal-detail-actions .danger {
+  background: rgba(255, 102, 102, 0.12);
+  color: #ffb1b1;
+}
+
+.goal-detail-stats,
+.goal-pillars-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.goal-mentor-summary {
+  border-radius: 20px;
+  background: rgba(74, 109, 193, 0.14);
+  border: 1px solid rgba(117, 166, 255, 0.18);
+  padding: 1rem;
+}
+
+.goal-mentor-summary span,
+.goal-mentor-summary p,
+.goal-pillar-card p,
+.goal-linked-task small,
+.goal-plan-preview small,
+.goals-empty-state p,
+.goals-list button p {
+  color: rgba(222, 229, 255, 0.78);
+}
+
+.goal-pillar-card,
+.goal-linked-task {
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0.95rem;
+}
+
+.goal-linked-list,
+.goal-editor-grid,
+.goal-plan-preview ul {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.goal-editor-panel label,
+.goal-detail-panel small,
+.goals-list button small,
+.goals-hero-stats span {
+  color: rgba(226, 232, 255, 0.72);
+}
+
+.goal-editor-panel input,
+.goal-editor-panel textarea,
+.goal-editor-panel select {
+  width: 100%;
+  margin-top: 0.45rem;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: #f5f7ff;
+  padding: 0.88rem 0.95rem;
+}
+
+.goal-editor-panel textarea {
+  min-height: 8rem;
+  resize: vertical;
+}
+
+.goal-editor-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.goal-editor-actions {
+  align-items: center;
+}
+
+.goal-editor-actions .primary {
+  background: linear-gradient(135deg, #79d9d1, #5c9eff);
+  color: #08111f;
+}
+
+.goal-editor-actions button:first-child {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f3f6ff;
+}
+
+.goal-plan-preview ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.goal-plan-preview li {
+  align-items: flex-start;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 0.9rem;
+}
+
+.goals-empty-state {
+  display: grid;
+  gap: 0.5rem;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 1rem;
+}
+
+.inline-feedback {
+  margin-bottom: 0.4rem;
+}
+
+@media (max-width: 1280px) {
+  .goals-layout {
+    grid-template-columns: 1fr;
   }
+
+  .goal-detail-stats,
+  .goal-pillars-grid,
+  .goals-hero,
+  .goals-hero-stats,
+  .goal-editor-grid {
+    grid-template-columns: 1fr;
+  }
+}
 
   .dashboard {
     position: relative;
