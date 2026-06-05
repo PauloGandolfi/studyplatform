@@ -4309,6 +4309,31 @@ textarea {
   padding: 1.2rem;
 }
 
+.goal-plan-preview label {
+  display: grid;
+  gap: 0.5rem;
+  color: #eff3ff;
+}
+
+.goal-plan-preview input,
+.goal-plan-preview textarea,
+.goal-editor-panel input,
+.goal-editor-panel textarea,
+.goal-editor-panel select {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #f4f7ff;
+  padding: 0.8rem 0.9rem;
+}
+
+.goal-plan-preview textarea,
+.goal-editor-panel textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
 .goals-list {
   display: grid;
   gap: 0.8rem;
@@ -4459,6 +4484,18 @@ textarea {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
   padding: 0.95rem;
+}
+
+.goal-next-actions {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding-left: 1.2rem;
+  color: rgba(222, 229, 255, 0.82);
+}
+
+.goal-next-actions li {
+  line-height: 1.5;
 }
 
 .goal-linked-list,

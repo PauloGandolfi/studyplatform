@@ -8,6 +8,7 @@ import com.paulogandolfi.studyplatform.ai.dto.GenerateFlashcardsResponse;
 import com.paulogandolfi.studyplatform.flashcards.entity.Difficulty;
 import com.paulogandolfi.studyplatform.mentor.dto.GoalPlanPillarResponse;
 import com.paulogandolfi.studyplatform.mentor.dto.GoalPlanResponse;
+import com.paulogandolfi.studyplatform.mentor.dto.GoalReplanMentorResponse;
 import com.paulogandolfi.studyplatform.mentor.dto.StudyRecommendationItemResponse;
 import com.paulogandolfi.studyplatform.mentor.dto.StudyRecommendationsResponse;
 import com.paulogandolfi.studyplatform.mentor.dto.WeeklyMissionResponse;
@@ -116,6 +117,30 @@ public class GeminiAiModelClient implements AiModelClient {
             return sanitizeGoalPlan(objectMapper.readValue(extractText(response), GoalPlanResponse.class));
         } catch (JsonProcessingException | RestClientException ex) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Unable to generate goal plan with Gemini", ex);
+        }
+    }
+
+    @Override
+    public GoalReplanMentorResponse generateGoalReplan(String prompt) {
+        if (!StringUtils.hasText(apiKey)) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Gemini API key is not configured");
+        }
+
+        GeminiGenerateContentRequest request = new GeminiGenerateContentRequest(
+                List.of(new GeminiContent(List.of(new GeminiPart(prompt)))),
+                new GeminiGenerationConfig("application/json", goalReplanSchema())
+        );
+
+        try {
+            GeminiGenerateContentResponse response = restClient.post()
+                    .uri("/{model}:generateContent", model)
+                    .body(request)
+                    .retrieve()
+                    .body(GeminiGenerateContentResponse.class);
+
+            return sanitizeGoalReplan(objectMapper.readValue(extractText(response), GoalReplanMentorResponse.class));
+        } catch (JsonProcessingException | RestClientException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Unable to generate goal replan with Gemini", ex);
         }
     }
 
@@ -258,6 +283,58 @@ public class GeminiAiModelClient implements AiModelClient {
         );
     }
 
+    private static GoalReplanMentorResponse sanitizeGoalReplan(GoalReplanMentorResponse response) {
+        if (response == null) {
+            return null;
+        }
+
+        List<GoalPlanPillarResponse> pillars = response.pillars() == null
+                ? List.of()
+                : response.pillars().stream()
+                .filter(Objects::nonNull)
+                .filter(pillar -> StringUtils.hasText(pillar.title()))
+                .limit(6)
+                .map(pillar -> new GoalPlanPillarResponse(
+                        pillar.title().trim(),
+                        StringUtils.hasText(pillar.description()) ? pillar.description().trim() : null,
+                        Math.max(1, pillar.targetHours())
+                ))
+                .toList();
+
+        List<WeeklyMissionResponse> missions = response.weeklyMissions() == null
+                ? List.of()
+                : response.weeklyMissions().stream()
+                .filter(Objects::nonNull)
+                .filter(mission -> StringUtils.hasText(mission.title()) && StringUtils.hasText(mission.focus()))
+                .limit(8)
+                .map(mission -> new WeeklyMissionResponse(
+                        Math.max(1, mission.weekOrder()),
+                        mission.title().trim(),
+                        mission.focus().trim()
+                ))
+                .toList();
+
+        List<String> nextActions = response.nextActions() == null
+                ? List.of()
+                : response.nextActions().stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .limit(5)
+                .toList();
+
+        return new GoalReplanMentorResponse(
+                response.reason(),
+                response.targetDate(),
+                Math.max(1, response.weeklyStudyHours()),
+                Math.max(1, response.estimatedStudyHours()),
+                response.mentorSummary(),
+                pillars,
+                missions,
+                nextActions,
+                response.notice()
+        );
+    }
+
     private static Map<String, Object> flashcardsSchema(int maxCards) {
         Map<String, Object> flashcardSchema = Map.of(
                 "type", "OBJECT",
@@ -364,6 +441,47 @@ public class GeminiAiModelClient implements AiModelClient {
                 ),
                 "required", List.of("subject", "level", "learningGoal", "suggestedOrder", "recommendations", "practiceSuggestion", "mentorNotice"),
                 "propertyOrdering", List.of("subject", "level", "learningGoal", "suggestedOrder", "recommendations", "practiceSuggestion", "mentorNotice")
+        );
+    }
+
+    private static Map<String, Object> goalReplanSchema() {
+        Map<String, Object> pillarSchema = Map.of(
+                "type", "OBJECT",
+                "properties", Map.of(
+                        "title", Map.of("type", "STRING"),
+                        "description", Map.of("type", "STRING"),
+                        "targetHours", Map.of("type", "INTEGER")
+                ),
+                "required", List.of("title", "description", "targetHours"),
+                "propertyOrdering", List.of("title", "description", "targetHours")
+        );
+
+        Map<String, Object> missionSchema = Map.of(
+                "type", "OBJECT",
+                "properties", Map.of(
+                        "weekOrder", Map.of("type", "INTEGER"),
+                        "title", Map.of("type", "STRING"),
+                        "focus", Map.of("type", "STRING")
+                ),
+                "required", List.of("weekOrder", "title", "focus"),
+                "propertyOrdering", List.of("weekOrder", "title", "focus")
+        );
+
+        return Map.of(
+                "type", "OBJECT",
+                "properties", Map.of(
+                        "reason", Map.of("type", "STRING"),
+                        "targetDate", Map.of("type", "STRING"),
+                        "weeklyStudyHours", Map.of("type", "INTEGER"),
+                        "estimatedStudyHours", Map.of("type", "INTEGER"),
+                        "mentorSummary", Map.of("type", "STRING"),
+                        "pillars", Map.of("type", "ARRAY", "items", pillarSchema, "maxItems", 6),
+                        "weeklyMissions", Map.of("type", "ARRAY", "items", missionSchema, "maxItems", 8),
+                        "nextActions", Map.of("type", "ARRAY", "items", Map.of("type", "STRING"), "maxItems", 5),
+                        "notice", Map.of("type", "STRING")
+                ),
+                "required", List.of("reason", "weeklyStudyHours", "estimatedStudyHours", "mentorSummary", "pillars", "weeklyMissions", "nextActions", "notice"),
+                "propertyOrdering", List.of("reason", "targetDate", "weeklyStudyHours", "estimatedStudyHours", "mentorSummary", "pillars", "weeklyMissions", "nextActions", "notice")
         );
     }
 

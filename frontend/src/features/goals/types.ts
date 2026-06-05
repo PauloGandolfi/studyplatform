@@ -32,6 +32,33 @@ export type GoalPendingReview = {
   reviewInterval: number;
 };
 
+export type GoalReplanHistory = {
+  id: string;
+  reason: string | null;
+  previousTargetDate: string | null;
+  newTargetDate: string | null;
+  previousWeeklyStudyHours: number;
+  newWeeklyStudyHours: number;
+  previousEstimatedStudyHours: number;
+  newEstimatedStudyHours: number;
+  mentorSummary: string | null;
+  createdAt: string;
+};
+
+export type GoalReplanProposal = {
+  goalId: string;
+  title: string;
+  reason: string;
+  targetDate: string | null;
+  weeklyStudyHours: number;
+  estimatedStudyHours: number;
+  mentorSummary: string;
+  pillars: GoalPillar[];
+  weeklyMissions: GoalWeeklyMission[];
+  nextActions: string[];
+  notice: string;
+};
+
 export type GoalProgressSnapshot = {
   trackedStudySeconds: number;
   hoursProgressPercentage: number;
@@ -70,6 +97,7 @@ export type Goal = {
   linkedTasks: GoalTaskSummary[];
   linkedSubjects: GoalSubjectSummary[];
   pendingReviews: GoalPendingReview[];
+  replanHistory: GoalReplanHistory[];
   createdAt: string;
   updatedAt: string;
 };

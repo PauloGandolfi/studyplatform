@@ -1,6 +1,9 @@
 package com.paulogandolfi.studyplatform.goals.controller;
 
 import com.paulogandolfi.studyplatform.goals.dto.GoalRequest;
+import com.paulogandolfi.studyplatform.goals.dto.GoalReplanApplyRequest;
+import com.paulogandolfi.studyplatform.goals.dto.GoalReplanProposalResponse;
+import com.paulogandolfi.studyplatform.goals.dto.GoalReplanRequest;
 import com.paulogandolfi.studyplatform.goals.dto.GoalResponse;
 import com.paulogandolfi.studyplatform.goals.service.GoalService;
 import jakarta.validation.Valid;
@@ -53,6 +56,24 @@ public class GoalController {
             @Valid @RequestBody GoalRequest request
     ) {
         return goalService.update(currentUserId(jwt), id, request);
+    }
+
+    @PostMapping("/{id}/replan")
+    public GoalReplanProposalResponse generateReplan(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID id,
+            @Valid @RequestBody GoalReplanRequest request
+    ) {
+        return goalService.generateReplanProposal(currentUserId(jwt), id, request);
+    }
+
+    @PostMapping("/{id}/replan/apply")
+    public GoalResponse applyReplan(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID id,
+            @Valid @RequestBody GoalReplanApplyRequest request
+    ) {
+        return goalService.applyReplan(currentUserId(jwt), id, request);
     }
 
     @DeleteMapping("/{id}")

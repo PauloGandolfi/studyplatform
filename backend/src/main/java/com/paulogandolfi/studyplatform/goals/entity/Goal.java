@@ -72,6 +72,9 @@ public class Goal {
     @OneToMany(mappedBy = "goal", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<GoalWeekPlan> weekPlans = new ArrayList<>();
 
+    @OneToMany(mappedBy = "goal", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<GoalReplanHistory> replanHistory = new ArrayList<>();
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -227,6 +230,17 @@ public class Goal {
     public void addWeekPlan(GoalWeekPlan weekPlan) {
         weekPlan.setGoal(this);
         weekPlans.add(weekPlan);
+    }
+
+    public List<GoalReplanHistory> getReplanHistory() {
+        return replanHistory.stream()
+                .sorted(Comparator.comparing(GoalReplanHistory::getCreatedAt).reversed())
+                .toList();
+    }
+
+    public void addReplanHistory(GoalReplanHistory history) {
+        history.setGoal(this);
+        replanHistory.add(history);
     }
 
     public LocalDateTime getCreatedAt() {

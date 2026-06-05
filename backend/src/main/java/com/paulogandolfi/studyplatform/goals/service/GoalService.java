@@ -3,6 +3,10 @@ package com.paulogandolfi.studyplatform.goals.service;
 import com.paulogandolfi.studyplatform.goals.dto.GoalPillarRequest;
 import com.paulogandolfi.studyplatform.goals.dto.GoalPillarResponse;
 import com.paulogandolfi.studyplatform.goals.dto.GoalProgressSnapshotResponse;
+import com.paulogandolfi.studyplatform.goals.dto.GoalReplanApplyRequest;
+import com.paulogandolfi.studyplatform.goals.dto.GoalReplanHistoryResponse;
+import com.paulogandolfi.studyplatform.goals.dto.GoalReplanProposalResponse;
+import com.paulogandolfi.studyplatform.goals.dto.GoalReplanRequest;
 import com.paulogandolfi.studyplatform.goals.dto.GoalRequest;
 import com.paulogandolfi.studyplatform.goals.dto.GoalReviewSummaryResponse;
 import com.paulogandolfi.studyplatform.goals.dto.GoalResponse;
@@ -12,10 +16,13 @@ import com.paulogandolfi.studyplatform.goals.dto.GoalWeeklyMissionRequest;
 import com.paulogandolfi.studyplatform.goals.dto.GoalWeeklyMissionResponse;
 import com.paulogandolfi.studyplatform.goals.entity.Goal;
 import com.paulogandolfi.studyplatform.goals.entity.GoalPillar;
+import com.paulogandolfi.studyplatform.goals.entity.GoalReplanHistory;
 import com.paulogandolfi.studyplatform.goals.entity.GoalStatus;
 import com.paulogandolfi.studyplatform.goals.entity.GoalWeekPlan;
 import com.paulogandolfi.studyplatform.goals.repository.GoalRepository;
 import com.paulogandolfi.studyplatform.flashcards.repository.FlashcardRepository;
+import com.paulogandolfi.studyplatform.mentor.dto.GoalReplanMentorResponse;
+import com.paulogandolfi.studyplatform.mentor.service.MentorGuidanceService;
 import com.paulogandolfi.studyplatform.subjects.repository.SubjectRepository;
 import com.paulogandolfi.studyplatform.tasks.repository.StudyTaskRepository;
 import com.paulogandolfi.studyplatform.users.entity.User;
@@ -44,6 +51,7 @@ public class GoalService {
     private final SubjectRepository subjectRepository;
     private final FlashcardRepository flashcardRepository;
     private final GoalProgressService goalProgressService;
+    private final MentorGuidanceService mentorGuidanceService;
 
     public GoalService(
             GoalRepository goalRepository,
@@ -51,7 +59,8 @@ public class GoalService {
             StudyTaskRepository studyTaskRepository,
             SubjectRepository subjectRepository,
             FlashcardRepository flashcardRepository,
-            GoalProgressService goalProgressService
+            GoalProgressService goalProgressService,
+            MentorGuidanceService mentorGuidanceService
     ) {
         this.goalRepository = goalRepository;
         this.userRepository = userRepository;
@@ -59,6 +68,7 @@ public class GoalService {
         this.subjectRepository = subjectRepository;
         this.flashcardRepository = flashcardRepository;
         this.goalProgressService = goalProgressService;
+        this.mentorGuidanceService = mentorGuidanceService;
     }
 
     @Transactional(readOnly = true)
@@ -125,6 +135,51 @@ public class GoalService {
         ));
 
         return toResponse(userId, goal);
+    }
+
+    @Transactional(readOnly = true)
+    public GoalReplanProposalResponse generateReplanProposal(UUID userId, UUID goalId, GoalReplanRequest request) {
+        Goal goal = findGoal(userId, goalId);
+        GoalProgressSnapshotResponse progressSnapshot = goalProgressService.snapshot(
+                userId,
+                goal.getId(),
+                goal.getEstimatedStudyHours(),
+                goal.getPillars().size()
+        );
+        GoalReplanMentorResponse proposal = mentorGuidanceService.generateGoalReplan(goal, progressSnapshot, request);
+
+        return toProposalResponse(goalId, goal.getTitle(), proposal);
+    }
+
+    @Transactional
+    public GoalResponse applyReplan(UUID userId, UUID goalId, GoalReplanApplyRequest request) {
+        Goal goal = findGoal(userId, goalId);
+
+        GoalReplanHistory history = new GoalReplanHistory(
+                normalizeOptionalText(request.reason()),
+                goal.getTargetDate(),
+                request.targetDate(),
+                goal.getWeeklyStudyHours(),
+                request.weeklyStudyHours(),
+                goal.getEstimatedStudyHours(),
+                request.estimatedStudyHours(),
+                normalizeOptionalText(request.mentorSummary())
+        );
+
+        goal.setTargetDate(request.targetDate());
+        goal.setWeeklyStudyHours(request.weeklyStudyHours());
+        goal.setEstimatedStudyHours(request.estimatedStudyHours());
+        goal.setMentorSummary(resolveMentorSummary(
+                request.mentorSummary(),
+                goal.getTitle(),
+                request.targetDate(),
+                goalProgressService.calculateHoursProgress(request.estimatedStudyHours(), trackedStudySeconds(userId, goal.getId()))
+        ));
+        goal.replacePillars(buildPillars(goal, request.pillars(), request.estimatedStudyHours()));
+        goal.replaceWeekPlans(buildWeekPlans(request.weeklyMissions(), goal.getPillars()));
+        goal.addReplanHistory(history);
+
+        return toResponse(userId, goalRepository.save(goal));
     }
 
     @Transactional
@@ -199,6 +254,21 @@ public class GoalService {
                         flashcard.getReviewInterval()
                 ))
                 .toList();
+        List<GoalReplanHistoryResponse> replanHistory = goal.getReplanHistory()
+                .stream()
+                .map(history -> new GoalReplanHistoryResponse(
+                        history.getId(),
+                        history.getReason(),
+                        history.getPreviousTargetDate(),
+                        history.getNewTargetDate(),
+                        history.getPreviousWeeklyStudyHours(),
+                        history.getNewWeeklyStudyHours(),
+                        history.getPreviousEstimatedStudyHours(),
+                        history.getNewEstimatedStudyHours(),
+                        history.getMentorSummary(),
+                        history.getCreatedAt()
+                ))
+                .toList();
 
         return new GoalResponse(
                 goal.getId(),
@@ -213,13 +283,14 @@ public class GoalService {
                 trackedStudySeconds,
                 progressPercentage,
                 riskLevel(goal, progressPercentage),
-                buildMentorSummary(goal.getTitle(), goal.getTargetDate(), progressPercentage),
+                resolveMentorSummary(goal.getMentorSummary(), goal.getTitle(), goal.getTargetDate(), progressPercentage),
                 progressSnapshot,
                 pillarResponses,
                 weeklyMissionResponses,
                 linkedTasks,
                 linkedSubjects,
                 pendingReviews,
+                replanHistory,
                 goal.getCreatedAt(),
                 goal.getUpdatedAt()
         );
@@ -359,6 +430,10 @@ public class GoalService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Goal not found"));
     }
 
+    private long trackedStudySeconds(UUID userId, UUID goalId) {
+        return goalProgressService.trackedStudySeconds(userId, goalId);
+    }
+
     private User findUser(UUID userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
@@ -383,5 +458,37 @@ public class GoalService {
         }
 
         return value.trim();
+    }
+
+    private GoalReplanProposalResponse toProposalResponse(UUID goalId, String title, GoalReplanMentorResponse proposal) {
+        return new GoalReplanProposalResponse(
+                goalId,
+                title,
+                proposal.reason(),
+                proposal.targetDate(),
+                proposal.weeklyStudyHours(),
+                proposal.estimatedStudyHours(),
+                proposal.mentorSummary(),
+                proposal.pillars().stream()
+                        .map(pillar -> new GoalPillarResponse(
+                                null,
+                                pillar.title(),
+                                pillar.description(),
+                                pillar.targetHours(),
+                                0,
+                                proposal.pillars().indexOf(pillar)
+                        ))
+                        .toList(),
+                proposal.weeklyMissions().stream()
+                        .map(mission -> new GoalWeeklyMissionResponse(
+                                null,
+                                mission.weekOrder(),
+                                mission.title(),
+                                mission.focus()
+                        ))
+                        .toList(),
+                proposal.nextActions(),
+                proposal.notice()
+        );
     }
 }

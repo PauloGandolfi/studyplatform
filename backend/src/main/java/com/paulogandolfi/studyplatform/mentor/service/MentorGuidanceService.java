@@ -1,10 +1,14 @@
 package com.paulogandolfi.studyplatform.mentor.service;
 
 import com.paulogandolfi.studyplatform.ai.service.AiModelClient;
+import com.paulogandolfi.studyplatform.goals.dto.GoalProgressSnapshotResponse;
+import com.paulogandolfi.studyplatform.goals.dto.GoalReplanRequest;
+import com.paulogandolfi.studyplatform.goals.entity.Goal;
 import com.paulogandolfi.studyplatform.goals.entity.GoalPriority;
 import com.paulogandolfi.studyplatform.mentor.dto.GoalPlanPillarResponse;
 import com.paulogandolfi.studyplatform.mentor.dto.GoalPlanRequest;
 import com.paulogandolfi.studyplatform.mentor.dto.GoalPlanResponse;
+import com.paulogandolfi.studyplatform.mentor.dto.GoalReplanMentorResponse;
 import com.paulogandolfi.studyplatform.mentor.dto.StudyRecommendationItemResponse;
 import com.paulogandolfi.studyplatform.mentor.dto.StudyRecommendationsRequest;
 import com.paulogandolfi.studyplatform.mentor.dto.StudyRecommendationsResponse;
@@ -50,6 +54,22 @@ public class MentorGuidanceService {
             return normalizeRecommendations(request, response);
         } catch (ResponseStatusException ex) {
             return fallbackRecommendations(request);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public GoalReplanMentorResponse generateGoalReplan(
+            Goal goal,
+            GoalProgressSnapshotResponse progressSnapshot,
+            GoalReplanRequest request
+    ) {
+        String prompt = buildGoalReplanPrompt(goal, progressSnapshot, request);
+
+        try {
+            GoalReplanMentorResponse response = aiModelClient.generateGoalReplan(prompt);
+            return normalizeGoalReplan(goal, request, response);
+        } catch (ResponseStatusException ex) {
+            return fallbackGoalReplan(goal, request);
         }
     }
 
@@ -138,6 +158,43 @@ public class MentorGuidanceService {
         );
     }
 
+    private GoalReplanMentorResponse normalizeGoalReplan(
+            Goal goal,
+            GoalReplanRequest request,
+            GoalReplanMentorResponse response
+    ) {
+        if (response == null || response.pillars() == null || response.pillars().isEmpty()) {
+            return fallbackGoalReplan(goal, request);
+        }
+
+        int weeklyStudyHours = response.weeklyStudyHours() > 0
+                ? response.weeklyStudyHours()
+                : defaultWeeklyStudyHours(goal, request);
+        LocalDate targetDate = response.targetDate() != null ? response.targetDate() : defaultTargetDate(goal, request, weeklyStudyHours);
+        int estimatedStudyHours = response.estimatedStudyHours() > 0
+                ? response.estimatedStudyHours()
+                : deriveEstimatedStudyHours(weeklyStudyHours, targetDate);
+        List<GoalPlanPillarResponse> pillars = normalizePillars(response.pillars(), estimatedStudyHours);
+        List<WeeklyMissionResponse> missions = response.weeklyMissions() == null || response.weeklyMissions().isEmpty()
+                ? fallbackWeeklyMissions(pillars)
+                : response.weeklyMissions();
+        List<String> nextActions = normalizeNextActions(response.nextActions(), goal.getTitle());
+
+        return new GoalReplanMentorResponse(
+                StringUtils.hasText(response.reason()) ? response.reason().trim() : defaultReplanReason(request),
+                targetDate,
+                weeklyStudyHours,
+                estimatedStudyHours,
+                StringUtils.hasText(response.mentorSummary())
+                        ? response.mentorSummary().trim()
+                        : defaultGoalReplanSummary(goal.getTitle(), targetDate, weeklyStudyHours),
+                pillars,
+                missions,
+                nextActions,
+                "Proposta de replanejamento gerada pelo Mentor. Revise antes de aplicar."
+        );
+    }
+
     private StudyRecommendationsResponse fallbackRecommendations(StudyRecommendationsRequest request) {
         String topic = request.topic().trim();
         return new StudyRecommendationsResponse(
@@ -174,6 +231,33 @@ public class MentorGuidanceService {
                 ),
                 "Monte um projeto simples aplicando o topico principal e registre aprendizados em anotacoes ou flashcards.",
                 "Recomendacoes do Mentor baseadas no conhecimento do modelo. Nao sao resultados de busca em tempo real."
+        );
+    }
+
+    private GoalReplanMentorResponse fallbackGoalReplan(Goal goal, GoalReplanRequest request) {
+        int weeklyStudyHours = defaultWeeklyStudyHours(goal, request);
+        LocalDate targetDate = defaultTargetDate(goal, request, weeklyStudyHours);
+        int estimatedStudyHours = deriveEstimatedStudyHours(weeklyStudyHours, targetDate);
+        List<GoalPlanPillarResponse> pillars = normalizePillars(List.of(
+                new GoalPlanPillarResponse("Recuperacao de base", "Reforce os pontos que estao atrasando o objetivo.", Math.max(1, Math.round(estimatedStudyHours * 0.30f))),
+                new GoalPlanPillarResponse("Execucao priorizada", "Mantenha foco no que gera mais progresso pratico agora.", Math.max(1, Math.round(estimatedStudyHours * 0.40f))),
+                new GoalPlanPillarResponse("Consolidacao final", "Feche o ciclo com revisao e entrega aplicada.", Math.max(1, estimatedStudyHours - Math.max(1, Math.round(estimatedStudyHours * 0.30f)) - Math.max(1, Math.round(estimatedStudyHours * 0.40f))))
+        ), estimatedStudyHours);
+
+        return new GoalReplanMentorResponse(
+                defaultReplanReason(request),
+                targetDate,
+                weeklyStudyHours,
+                estimatedStudyHours,
+                defaultGoalReplanSummary(goal.getTitle(), targetDate, weeklyStudyHours),
+                pillars,
+                fallbackWeeklyMissions(pillars),
+                normalizeNextActions(List.of(
+                        "Proteja blocos fixos de estudo na semana.",
+                        "Priorize o primeiro pilar ate retomar tracao.",
+                        "Revise o que estiver vencido antes de abrir novas frentes."
+                ), goal.getTitle()),
+                "Replanejamento fallback gerado sem apoio confiavel da IA. Revise antes de aplicar."
         );
     }
 
@@ -264,6 +348,50 @@ public class MentorGuidanceService {
         );
     }
 
+    private String buildGoalReplanPrompt(
+            Goal goal,
+            GoalProgressSnapshotResponse progressSnapshot,
+            GoalReplanRequest request
+    ) {
+        return """
+                Voce e o Mentor de uma plataforma de estudos.
+
+                Replaneje o objetivo abaixo com foco em recuperar ritmo, reduzir risco e sugerir proximos passos.
+                Regras:
+                - responda em portugues do Brasil;
+                - preserve um plano enxuto e executavel;
+                - se houver atraso, proponha ajuste realista de prazo ou carga semanal;
+                - se houver revisoes pendentes, inclua isso nos proximos passos;
+                - retorne pilares e missoes semanais coerentes com o novo plano;
+                - nao fale sobre navegar na internet.
+
+                Objetivo: %s
+                Contexto: %s
+                Nivel atual: %s
+                Prazo atual: %s
+                Horas por semana atuais: %d
+                Progresso por horas: %d%%
+                Tarefas concluidas: %d/%d
+                Revisoes pendentes: %d
+                Contexto adicional do usuario: %s
+                Preferencia de novo prazo: %s
+                Preferencia de horas por semana: %s
+                """.formatted(
+                goal.getTitle(),
+                StringUtils.hasText(goal.getDescription()) ? goal.getDescription() : "nao informado",
+                goal.getCurrentLevel(),
+                goal.getTargetDate() == null ? "sem prazo fechado" : goal.getTargetDate(),
+                goal.getWeeklyStudyHours(),
+                progressSnapshot.hoursProgressPercentage(),
+                progressSnapshot.completedTasks(),
+                progressSnapshot.totalTasks(),
+                progressSnapshot.pendingReviews(),
+                StringUtils.hasText(request.context()) ? request.context().trim() : "nao informado",
+                request.preferredTargetDate() == null ? "nao informado" : request.preferredTargetDate(),
+                request.preferredWeeklyStudyHours() == null ? "nao informado" : request.preferredWeeklyStudyHours()
+        );
+    }
+
     private int deriveEstimatedStudyHours(int weeklyStudyHours, LocalDate targetDate) {
         if (targetDate == null) {
             return Math.max(1, weeklyStudyHours * 12);
@@ -287,6 +415,16 @@ public class MentorGuidanceService {
                 .formatted(title, targetDate, estimatedStudyHours);
     }
 
+    private static String defaultGoalReplanSummary(String title, LocalDate targetDate, int weeklyStudyHours) {
+        if (targetDate == null) {
+            return "Mentor: replanejei \"%s\" para retomar consistencia com %d hora(s) por semana e entregas mais focadas."
+                    .formatted(title, weeklyStudyHours);
+        }
+
+        return "Mentor: ajustei \"%s\" para caber ate %s com foco em retomada gradual e %d hora(s) por semana."
+                .formatted(title, targetDate, weeklyStudyHours);
+    }
+
     private static String defaultLevel(String currentLevel) {
         return StringUtils.hasText(currentLevel) ? currentLevel.trim() : "iniciante";
     }
@@ -295,6 +433,44 @@ public class MentorGuidanceService {
         return StringUtils.hasText(request.learningGoal())
                 ? request.learningGoal().trim()
                 : "aprender " + request.topic().trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static int defaultWeeklyStudyHours(Goal goal, GoalReplanRequest request) {
+        return request.preferredWeeklyStudyHours() != null ? request.preferredWeeklyStudyHours() : goal.getWeeklyStudyHours();
+    }
+
+    private static LocalDate defaultTargetDate(Goal goal, GoalReplanRequest request, int weeklyStudyHours) {
+        if (request.preferredTargetDate() != null) {
+            return request.preferredTargetDate();
+        }
+
+        if (goal.getTargetDate() != null && !goal.getTargetDate().isBefore(LocalDate.now())) {
+            return goal.getTargetDate().plusWeeks(2);
+        }
+
+        return LocalDate.now().plusWeeks(Math.max(4, Math.min(16, weeklyStudyHours + 2L)));
+    }
+
+    private static String defaultReplanReason(GoalReplanRequest request) {
+        return StringUtils.hasText(request.context())
+                ? request.context().trim()
+                : "Ajuste de rota para recuperar consistencia e reduzir risco no objetivo.";
+    }
+
+    private static List<String> normalizeNextActions(List<String> nextActions, String title) {
+        if (nextActions == null || nextActions.isEmpty()) {
+            return List.of(
+                    "Reserve a primeira sessao da semana para retomar \"" + title + "\".",
+                    "Feche o proximo bloco de estudo antes de abrir novas frentes.",
+                    "Revise pendencias e ajuste tarefas para refletir o novo plano."
+            );
+        }
+
+        return nextActions.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .limit(5)
+                .toList();
     }
 
     private static String normalizeOptionalText(String value) {

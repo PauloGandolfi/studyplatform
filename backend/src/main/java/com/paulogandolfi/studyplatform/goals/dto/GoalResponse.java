@@ -28,6 +28,7 @@ public record GoalResponse(
         List<GoalTaskSummaryResponse> linkedTasks,
         List<GoalSubjectSummaryResponse> linkedSubjects,
         List<GoalReviewSummaryResponse> pendingReviews,
+        List<GoalReplanHistoryResponse> replanHistory,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {

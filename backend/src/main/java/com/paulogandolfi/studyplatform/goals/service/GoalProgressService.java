@@ -34,7 +34,7 @@ public class GoalProgressService {
 
     @Transactional(readOnly = true)
     public GoalProgressSnapshotResponse snapshot(UUID userId, UUID goalId, int estimatedStudyHours, int totalPillars) {
-        long trackedStudySeconds = studySessionRepository.sumDurationSecondsByUserIdAndGoal_Id(userId, goalId);
+        long trackedStudySeconds = trackedStudySeconds(userId, goalId);
         long totalTasks = studyTaskRepository.countByUser_IdAndGoal_Id(userId, goalId);
         long completedTasks = studyTaskRepository.countByUser_IdAndGoal_IdAndStatus(userId, goalId, TaskStatus.DONE);
         long linkedSubjects = subjectRepository.countByUser_IdAndGoal_Id(userId, goalId);
@@ -63,5 +63,10 @@ public class GoalProgressService {
         }
 
         return (int) Math.min(100, Math.round((trackedStudySeconds * 100.0) / (estimatedStudyHours * 3600.0)));
+    }
+
+    @Transactional(readOnly = true)
+    public long trackedStudySeconds(UUID userId, UUID goalId) {
+        return studySessionRepository.sumDurationSecondsByUserIdAndGoal_Id(userId, goalId);
     }
 }

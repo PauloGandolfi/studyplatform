@@ -580,7 +580,7 @@ Fica para depois:
 - [x] Criar endpoint para gerar plano inicial com IA
 - [x] Criar endpoint para recomendacao estruturada de estudo
 - [x] Criar endpoint para detalhar objetivo com pilares, metas e progresso
-- [ ] Criar endpoint para replanejamento
+- [x] Criar endpoint para replanejamento
 - [x] Implementar servico de calculo de progresso
 - [x] Implementar vinculacao entre objetivo e tarefas existentes
 - [x] Cobrir regras com testes de controller e service
@@ -656,8 +656,8 @@ Fica para depois:
 
 ### Fase 4
 
-- [ ] replanejamento
-- [ ] acompanhamento proativo do Mentor
+- [x] replanejamento
+- [x] acompanhamento proativo do Mentor
 - [ ] refinamento da experiencia
 
 ### Status consolidado
@@ -665,7 +665,7 @@ Fica para depois:
 - [x] Fase 1 concluida
 - [x] Fase 2 concluida
 - [x] Fase 3 concluida
-- [ ] Fase 4 pendente
+- [ ] Fase 4 em andamento
 
 ---
 
@@ -699,10 +699,10 @@ Esse caminho reaproveita a base atual e eleva bastante o valor percebido do prod
 
 ### Proximo pacote tecnico recomendado
 
-- [ ] Criar endpoint de replanejamento do objetivo
-- [ ] Definir contrato de resposta para replanejamento por semanas futuras
-- [ ] Permitir o Mentor sugerir ajuste de carga semanal, prazo e ordem de pilares
-- [ ] Persistir historico simples de replanejamentos aprovados
+- [x] Criar endpoint de replanejamento do objetivo
+- [x] Definir contrato de resposta para replanejamento por semanas futuras
+- [x] Permitir o Mentor sugerir ajuste de carga semanal, prazo e ordem de pilares
+- [x] Persistir historico simples de replanejamentos aprovados
 
 ### Evolucoes de IA
 
@@ -715,8 +715,8 @@ Esse caminho reaproveita a base atual e eleva bastante o valor percebido do prod
 - [ ] Permitir transformar recomendacao em tarefa
 - [ ] Permitir transformar recomendacao em assunto
 - [ ] Permitir transformar recomendacao em etapa do plano
-- [ ] Exibir historico de ajustes e replanejamentos no detalhe do objetivo
-- [ ] Criar CTA de replanejamento dentro da tela de objetivos
+- [x] Exibir historico de ajustes e replanejamentos no detalhe do objetivo
+- [x] Criar CTA de replanejamento dentro da tela de objetivos
 
 ### Validacao e qualidade
 
