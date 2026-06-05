@@ -41,6 +41,12 @@ public record GoalRequest(
         Integer estimatedStudyHours,
 
         @Valid
-        List<GoalPillarRequest> pillars
+        List<GoalPillarRequest> pillars,
+
+        @Valid
+        List<GoalWeeklyMissionRequest> weeklyMissions,
+
+        @Size(max = 1000)
+        String mentorSummary
 ) {
 }

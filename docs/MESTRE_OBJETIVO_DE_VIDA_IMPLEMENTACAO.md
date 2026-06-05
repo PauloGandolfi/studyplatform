@@ -568,7 +568,7 @@ Fica para depois:
 
 - [x] Criar entidade `Goal`
 - [x] Criar entidade para pilares do objetivo
-- [ ] Criar entidade para semanas ou milestones
+- [x] Criar entidade para semanas ou milestones
 - [x] Definir relacionamento com `StudyTask`
 - [ ] Definir relacionamento com `Subject`
 - [ ] Definir se flashcards terao vinculacao opcional com objetivo/pilar
@@ -579,47 +579,47 @@ Fica para depois:
 - [x] Criar endpoints para CRUD de objetivos
 - [x] Criar endpoint para gerar plano inicial com IA
 - [x] Criar endpoint para recomendacao estruturada de estudo
-- [ ] Criar endpoint para detalhar objetivo com pilares, metas e progresso
+- [x] Criar endpoint para detalhar objetivo com pilares, metas e progresso
 - [ ] Criar endpoint para replanejamento
 - [ ] Implementar servico de calculo de progresso
-- [ ] Implementar vinculacao entre objetivo e tarefas existentes
-- [ ] Cobrir regras com testes de controller e service
+- [x] Implementar vinculacao entre objetivo e tarefas existentes
+- [x] Cobrir regras com testes de controller e service
 
 ### IA
 
-- [ ] Definir prompt estruturado para gerar trilha de estudo
-- [ ] Definir prompt para quebrar objetivo em pilares
-- [ ] Definir prompt para gerar missoes semanais
+- [x] Definir prompt estruturado para gerar trilha de estudo
+- [x] Definir prompt para quebrar objetivo em pilares
+- [x] Definir prompt para gerar missoes semanais
 - [ ] Definir prompt para sugerir revisoes e flashcards
-- [ ] Definir prompt para recomendacao estruturada de conteudo
-- [ ] Garantir saida estruturada em JSON
-- [ ] Tratar fallback quando a IA devolver estrutura invalida
-- [ ] Definir schema para `StudyRecommendationsResponse`
+- [x] Definir prompt para recomendacao estruturada de conteudo
+- [x] Garantir saida estruturada em JSON
+- [x] Tratar fallback quando a IA devolver estrutura invalida
+- [x] Definir schema para `StudyRecommendationsResponse`
 
 ### Frontend
 
-- [ ] Atualizar nomenclatura visual de `Mestre` para `Mentor`
-- [ ] Atualizar labels, componentes e textos internos ligados ao `Mestre`
-- [ ] Criar secao de navegacao para objetivos
-- [ ] Criar tela de listagem de objetivos
-- [ ] Criar formulario de criacao de objetivo
-- [ ] Criar tela de detalhe do objetivo
-- [ ] Exibir percentual concluido por objetivo
-- [ ] Exibir percentual por pilar
-- [ ] Exibir missoes da semana
+- [x] Atualizar nomenclatura visual de `Mestre` para `Mentor`
+- [x] Atualizar labels, componentes e textos internos ligados ao `Mestre`
+- [x] Criar secao de navegacao para objetivos
+- [x] Criar tela de listagem de objetivos
+- [x] Criar formulario de criacao de objetivo
+- [x] Criar tela de detalhe do objetivo
+- [x] Exibir percentual concluido por objetivo
+- [x] Exibir percentual por pilar
+- [x] Exibir missoes da semana
 - [ ] Exibir revisoes pendentes ligadas ao objetivo
-- [ ] Integrar o Mentor ao contexto do objetivo selecionado
-- [ ] Criar visualizacao de recomendacoes estruturadas de estudo
+- [x] Integrar o Mentor ao contexto do objetivo selecionado
+- [x] Criar visualizacao de recomendacoes estruturadas de estudo
 - [ ] Permitir transformar uma recomendacao em tarefa, assunto ou plano
 
 ### Experiencia do usuario
 
-- [ ] Permitir aprovar ou editar o plano gerado antes de salvar
-- [ ] Mostrar claramente como o progresso foi calculado
-- [ ] Exibir mensagens de acompanhamento do Mentor
-- [ ] Destacar atrasos, risco de nao cumprir prazo e proximos passos
-- [ ] Garantir que a feature faca sentido mesmo para objetivos sem prazo fechado
-- [ ] Deixar claro quando uma recomendacao veio do conhecimento do modelo e nao de busca externa
+- [x] Permitir aprovar ou editar o plano gerado antes de salvar
+- [x] Mostrar claramente como o progresso foi calculado
+- [x] Exibir mensagens de acompanhamento do Mentor
+- [x] Destacar atrasos, risco de nao cumprir prazo e proximos passos
+- [x] Garantir que a feature faca sentido mesmo para objetivos sem prazo fechado
+- [x] Deixar claro quando uma recomendacao veio do conhecimento do modelo e nao de busca externa
 
 ### Observabilidade e qualidade
 

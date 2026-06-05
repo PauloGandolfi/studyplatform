@@ -17,6 +17,13 @@ export type GoalTaskSummary = {
   primaryTask: boolean;
 };
 
+export type GoalWeeklyMission = {
+  id: string;
+  weekOrder: number;
+  title: string;
+  focus: string;
+};
+
 export type Goal = {
   id: string;
   title: string;
@@ -32,6 +39,7 @@ export type Goal = {
   riskLevel: string;
   mentorSummary: string;
   pillars: GoalPillar[];
+  weeklyMissions: GoalWeeklyMission[];
   linkedTasks: GoalTaskSummary[];
   createdAt: string;
   updatedAt: string;

@@ -75,7 +75,8 @@ class GoalControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.title").value("Virar backend Java pleno"))
                 .andExpect(jsonPath("$.progressPercentage").value(0))
-                .andExpect(jsonPath("$.pillars.length()").value(3));
+                .andExpect(jsonPath("$.pillars.length()").value(3))
+                .andExpect(jsonPath("$.weeklyMissions.length()").value(3));
 
         Goal savedGoal = goalRepository.findAllByUser_IdOrderByUpdatedAtDesc(user.getId()).getFirst();
 
@@ -84,6 +85,13 @@ class GoalControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].id").value(savedGoal.getId().toString()));
+
+        mockMvc.perform(get("/goals/{id}", savedGoal.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(user)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(savedGoal.getId().toString()))
+                .andExpect(jsonPath("$.weeklyMissions.length()").value(3))
+                .andExpect(jsonPath("$.mentorSummary").exists());
 
         mockMvc.perform(put("/goals/{id}", savedGoal.getId())
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
