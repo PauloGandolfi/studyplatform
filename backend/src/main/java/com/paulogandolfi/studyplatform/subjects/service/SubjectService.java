@@ -1,5 +1,7 @@
 package com.paulogandolfi.studyplatform.subjects.service;
 
+import com.paulogandolfi.studyplatform.goals.entity.Goal;
+import com.paulogandolfi.studyplatform.goals.repository.GoalRepository;
 import com.paulogandolfi.studyplatform.subjects.dto.SubjectRequest;
 import com.paulogandolfi.studyplatform.subjects.dto.SubjectResponse;
 import com.paulogandolfi.studyplatform.subjects.entity.Subject;
@@ -20,16 +22,22 @@ public class SubjectService {
 
     private final SubjectRepository subjectRepository;
     private final UserRepository userRepository;
+    private final GoalRepository goalRepository;
 
-    public SubjectService(SubjectRepository subjectRepository, UserRepository userRepository) {
+    public SubjectService(
+            SubjectRepository subjectRepository,
+            UserRepository userRepository,
+            GoalRepository goalRepository
+    ) {
         this.subjectRepository = subjectRepository;
         this.userRepository = userRepository;
+        this.goalRepository = goalRepository;
     }
 
     @Transactional
     public SubjectResponse create(UUID userId, SubjectRequest request) {
         User user = findUser(userId);
-        Subject subject = new Subject(user, normalizeName(request), normalizeDifficulty(request));
+        Subject subject = new Subject(user, findGoal(userId, request.goalId()), normalizeName(request), normalizeDifficulty(request));
 
         return SubjectResponse.from(subjectRepository.save(subject));
     }
@@ -47,6 +55,7 @@ public class SubjectService {
         Subject subject = findSubject(subjectId, userId);
         subject.setName(normalizeName(request));
         subject.setDifficulty(normalizeDifficulty(request));
+        subject.setGoal(findGoal(userId, request.goalId()));
 
         return SubjectResponse.from(subject);
     }
@@ -65,6 +74,15 @@ public class SubjectService {
     private Subject findSubject(UUID subjectId, UUID userId) {
         return subjectRepository.findByIdAndUser_Id(subjectId, userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Subject not found"));
+    }
+
+    private Goal findGoal(UUID userId, UUID goalId) {
+        if (goalId == null) {
+            return null;
+        }
+
+        return goalRepository.findByIdAndUser_Id(goalId, userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Goal not found"));
     }
 
     private static String normalizeName(SubjectRequest request) {

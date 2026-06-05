@@ -28,6 +28,7 @@ type Subject = {
   id: string;
   name: string;
   difficulty: Difficulty;
+  goalId: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -136,6 +137,7 @@ type FlashcardFormValues = {
 type SubjectFormValues = {
   name: string;
   difficulty: Difficulty;
+  goalId: string;
 };
 
 const initialValues = {
@@ -170,7 +172,8 @@ const emptyFlashcardForm: FlashcardFormValues = {
 
 const emptySubjectForm: SubjectFormValues = {
   name: "",
-  difficulty: "MEDIUM"
+  difficulty: "MEDIUM",
+  goalId: ""
 };
 
 const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
@@ -409,6 +412,14 @@ function getTaskProgress(tasks: StudyTask[]) {
 
 function getSubjectName(subjects: Subject[], subjectId: string) {
   return subjects.find((subject) => subject.id === subjectId)?.name ?? "Assunto removido";
+}
+
+function getGoalTitle(goals: Goal[], goalId: string | null | undefined) {
+  if (!goalId) {
+    return "";
+  }
+
+  return goals.find((goal) => goal.id === goalId)?.title ?? "Objetivo removido";
 }
 
 function confirmDelete(itemLabel: string) {
@@ -1196,6 +1207,8 @@ function DashboardHome() {
   const totalStudySeconds = metrics?.totalStudySeconds ?? 0;
   const hasOpenStudySession = isStudying || isStudyPaused || isSavingStudyTime;
   const displayTotalStudySeconds = totalStudySeconds + (hasOpenStudySession ? elapsedSeconds : 0);
+  const featuredGoal = goals.find((goal) => goal.id === selectedGoalId) ?? goals.find((goal) => goal.status === "ACTIVE") ?? goals[0] ?? null;
+  const atRiskGoals = goals.filter((goal) => goal.riskLevel === "AT_RISK");
 
   function handleStartStudying() {
     lastActivityAtRef.current = Date.now();
@@ -1358,6 +1371,50 @@ function DashboardHome() {
 
       {metrics ? (
         <section className="dashboard-panels">
+          {featuredGoal ? (
+            <article className="activity-panel journey-panel">
+              <div className="panel-heading">
+                <h2>
+                  <DashboardIcon name="rocket" />
+                  Jornada em destaque
+                </h2>
+                <button type="button">Objetivos</button>
+              </div>
+
+              <div className="journey-goal-card">
+                <div className="goal-detail-meta">
+                  <span className={`goal-risk-pill tone-${featuredGoal.riskLevel.toLowerCase().replace("_", "-")}`}>
+                    {featuredGoal.riskLevel === "AT_RISK" ? "Em risco" : featuredGoal.riskLevel === "ON_TRACK" ? "No ritmo" : featuredGoal.riskLevel === "COMPLETED" ? "Concluido" : "Sem prazo"}
+                  </span>
+                  <small>{featuredGoal.targetDate ? `Prazo ate ${featuredGoal.targetDate}` : "Sem prazo fechado"}</small>
+                </div>
+                <strong>{featuredGoal.title}</strong>
+                <p>{featuredGoal.mentorSummary}</p>
+                <div className="goal-progress-line">
+                  <span style={{ width: `${featuredGoal.progressPercentage}%` }} />
+                </div>
+                <div className="journey-metrics">
+                  <span>{featuredGoal.progressPercentage}% em horas estudadas</span>
+                  <span>{featuredGoal.progressSnapshot.completedTasks}/{featuredGoal.progressSnapshot.totalTasks} tarefas</span>
+                  <span>{featuredGoal.progressSnapshot.pendingReviews} revisoes pendentes</span>
+                </div>
+              </div>
+
+              {atRiskGoals.length > 0 ? (
+                <div className="journey-alert-list">
+                  {atRiskGoals.slice(0, 3).map((goal) => (
+                    <div key={goal.id} className="journey-alert-item">
+                      <strong>{goal.title}</strong>
+                      <span>{goal.progressPercentage}% e prazo sob atencao</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="activity-empty">Nenhum objetivo em risco no momento. Continue mantendo a cadencia.</div>
+              )}
+            </article>
+          ) : null}
+
           <article className="activity-panel">
             <div className="panel-heading">
               <h2>
@@ -1829,6 +1886,7 @@ function TasksPage() {
 
 function SubjectsPage() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -1841,12 +1899,16 @@ function SubjectsPage() {
     setIsLoading(true);
 
     try {
-      const subjectsData = await apiRequest<Subject[]>("/subjects");
+      const [subjectsData, goalsData] = await Promise.all([
+        apiRequest<Subject[]>("/subjects"),
+        apiRequest<Goal[]>("/goals")
+      ]);
       if (!Array.isArray(subjectsData)) {
         throw new Error("Resposta invalida ao carregar seus assuntos.");
       }
 
       setSubjects(subjectsData);
+      setGoals(goalsData);
       setFeedback(null);
     } catch (error) {
       setFeedback({
@@ -1871,7 +1933,11 @@ function SubjectsPage() {
 
   function openEditModal(subject: Subject) {
     setEditingSubject(subject);
-    setFormValues({ name: subject.name, difficulty: subject.difficulty ?? "MEDIUM" });
+    setFormValues({
+      name: subject.name,
+      difficulty: subject.difficulty ?? "MEDIUM",
+      goalId: subject.goalId ?? ""
+    });
     setFeedback(null);
     setIsModalOpen(true);
   }
@@ -1893,7 +1959,8 @@ function SubjectsPage() {
 
     const payload = {
       name: formValues.name.trim(),
-      difficulty: formValues.difficulty
+      difficulty: formValues.difficulty,
+      goalId: formValues.goalId || null
     };
 
     try {
@@ -1986,6 +2053,7 @@ function SubjectsPage() {
                 <b className={`subject-difficulty tone-${(subject.difficulty ?? "MEDIUM").toLowerCase()}`}>
                   Dificuldade {getDifficultyLabel(subject.difficulty ?? "MEDIUM")}
                 </b>
+                {subject.goalId ? <small className="task-goal-chip">Objetivo: {getGoalTitle(goals, subject.goalId)}</small> : null}
                 <time>Atualizado em {formatDate(subject.updatedAt)}</time>
               </div>
 
@@ -2056,6 +2124,21 @@ function SubjectsPage() {
               </select>
             </label>
 
+            <label>
+              Objetivo relacionado
+              <select
+                value={formValues.goalId}
+                onChange={(event) => setFormValues((current) => ({ ...current, goalId: event.target.value }))}
+              >
+                <option value="">Assunto geral</option>
+                {goals.map((goal) => (
+                  <option value={goal.id} key={goal.id}>
+                    {goal.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+
             <div className="editor-actions">
               <button type="button" className="ghost-button" onClick={closeSubjectModal}>
                 Cancelar
@@ -2075,6 +2158,7 @@ function SubjectsPage() {
 function FlashcardsPage() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [selectedSubjectId, setSelectedSubjectId] = useState("all");
   const [editingFlashcard, setEditingFlashcard] = useState<Flashcard | null>(null);
   const [formValues, setFormValues] = useState<FlashcardFormValues>(emptyFlashcardForm);
@@ -2095,9 +2179,11 @@ function FlashcardsPage() {
         apiRequest<Subject[]>("/subjects"),
         apiRequest<Flashcard[]>(selectedSubjectId === "all" ? "/flashcards" : `/subjects/${selectedSubjectId}/flashcards`)
       ]);
+      const goalsData = await apiRequest<Goal[]>("/goals");
 
       setSubjects(subjectsData);
       setFlashcards(flashcardsData);
+      setGoals(goalsData);
       setFeedback(null);
     } catch (error) {
       setFeedback({
@@ -2272,6 +2358,12 @@ function FlashcardsPage() {
                   {getDifficultyLabel(flashcard.difficulty)}
                 </strong>
               </div>
+
+              {subjects.find((subject) => subject.id === flashcard.subjectId)?.goalId ? (
+                <small className="task-goal-chip">
+                  Objetivo: {getGoalTitle(goals, subjects.find((subject) => subject.id === flashcard.subjectId)?.goalId ?? null)}
+                </small>
+              ) : null}
 
               <div className={`flashcard-visual tone-${index % 3}`}>
                 <p>{getFlashcardPreview(flashcard.question)}</p>

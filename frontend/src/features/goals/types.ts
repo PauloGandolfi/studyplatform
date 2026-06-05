@@ -17,6 +17,59 @@ export type GoalTaskSummary = {
   primaryTask: boolean;
 };
 
+export type GoalSubjectSummary = {
+  id: string;
+  name: string;
+  difficulty: "EASY" | "MEDIUM" | "HARD";
+};
+
+export type GoalPendingReview = {
+  id: string;
+  subjectId: string;
+  subjectName: string;
+  question: string;
+  nextReviewDate: string;
+  reviewInterval: number;
+};
+
+export type GoalReplanHistory = {
+  id: string;
+  reason: string | null;
+  previousTargetDate: string | null;
+  newTargetDate: string | null;
+  previousWeeklyStudyHours: number;
+  newWeeklyStudyHours: number;
+  previousEstimatedStudyHours: number;
+  newEstimatedStudyHours: number;
+  mentorSummary: string | null;
+  createdAt: string;
+};
+
+export type GoalReplanProposal = {
+  goalId: string;
+  title: string;
+  reason: string;
+  targetDate: string | null;
+  weeklyStudyHours: number;
+  estimatedStudyHours: number;
+  mentorSummary: string;
+  pillars: GoalPillar[];
+  weeklyMissions: GoalWeeklyMission[];
+  nextActions: string[];
+  notice: string;
+};
+
+export type GoalProgressSnapshot = {
+  trackedStudySeconds: number;
+  hoursProgressPercentage: number;
+  completedTasks: number;
+  totalTasks: number;
+  linkedSubjects: number;
+  totalPillars: number;
+  pendingReviews: number;
+  totalFlashcards: number;
+};
+
 export type GoalWeeklyMission = {
   id: string;
   weekOrder: number;
@@ -38,9 +91,13 @@ export type Goal = {
   progressPercentage: number;
   riskLevel: string;
   mentorSummary: string;
+  progressSnapshot: GoalProgressSnapshot;
   pillars: GoalPillar[];
   weeklyMissions: GoalWeeklyMission[];
   linkedTasks: GoalTaskSummary[];
+  linkedSubjects: GoalSubjectSummary[];
+  pendingReviews: GoalPendingReview[];
+  replanHistory: GoalReplanHistory[];
   createdAt: string;
   updatedAt: string;
 };

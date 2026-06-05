@@ -570,8 +570,8 @@ Fica para depois:
 - [x] Criar entidade para pilares do objetivo
 - [x] Criar entidade para semanas ou milestones
 - [x] Definir relacionamento com `StudyTask`
-- [ ] Definir relacionamento com `Subject`
-- [ ] Definir se flashcards terao vinculacao opcional com objetivo/pilar
+- [x] Definir relacionamento com `Subject`
+- [x] Definir se flashcards terao vinculacao opcional com objetivo/pilar
 - [x] Criar migrations SQL
 
 ### Backend
@@ -580,8 +580,8 @@ Fica para depois:
 - [x] Criar endpoint para gerar plano inicial com IA
 - [x] Criar endpoint para recomendacao estruturada de estudo
 - [x] Criar endpoint para detalhar objetivo com pilares, metas e progresso
-- [ ] Criar endpoint para replanejamento
-- [ ] Implementar servico de calculo de progresso
+- [x] Criar endpoint para replanejamento
+- [x] Implementar servico de calculo de progresso
 - [x] Implementar vinculacao entre objetivo e tarefas existentes
 - [x] Cobrir regras com testes de controller e service
 
@@ -607,7 +607,7 @@ Fica para depois:
 - [x] Exibir percentual concluido por objetivo
 - [x] Exibir percentual por pilar
 - [x] Exibir missoes da semana
-- [ ] Exibir revisoes pendentes ligadas ao objetivo
+- [x] Exibir revisoes pendentes ligadas ao objetivo
 - [x] Integrar o Mentor ao contexto do objetivo selecionado
 - [x] Criar visualizacao de recomendacoes estruturadas de estudo
 - [ ] Permitir transformar uma recomendacao em tarefa, assunto ou plano
@@ -636,29 +636,36 @@ Fica para depois:
 
 ### Fase 1
 
-- rename de `Mestre` para `Mentor`
-- modelagem de objetivo
-- CRUD basico
-- tela simples de objetivos
+- [x] rename de `Mestre` para `Mentor`
+- [x] modelagem de objetivo
+- [x] CRUD basico
+- [x] tela simples de objetivos
 
 ### Fase 2
 
-- geracao de pilares e plano inicial por IA
-- recomendacao estruturada de estudo
-- salvamento estruturado
-- detalhe do objetivo
+- [x] geracao de pilares e plano inicial por IA
+- [x] recomendacao estruturada de estudo
+- [x] salvamento estruturado
+- [x] detalhe do objetivo
 
 ### Fase 3
 
-- integracao com tarefas, assuntos e flashcards
-- calculo de progresso
-- dashboard de acompanhamento
+- [x] integracao com tarefas, assuntos e flashcards
+- [x] calculo de progresso
+- [x] dashboard de acompanhamento
 
 ### Fase 4
 
-- replanejamento
-- acompanhamento proativo do Mestre
-- refinamento da experiencia
+- [x] replanejamento
+- [x] acompanhamento proativo do Mentor
+- [ ] refinamento da experiencia
+
+### Status consolidado
+
+- [x] Fase 1 concluida
+- [x] Fase 2 concluida
+- [x] Fase 3 concluida
+- [ ] Fase 4 em andamento
 
 ---
 
@@ -688,14 +695,40 @@ Esse caminho reaproveita a base atual e eleva bastante o valor percebido do prod
 
 ---
 
-## Proximo passo pratico
+## Proximos passos
 
-Depois deste documento, o ideal e quebrar a implementacao em um plano tecnico menor com:
+### Proximo pacote tecnico recomendado
 
-- modelo de dados
-- contratos de API
-- estrutura de resposta da IA
-- desenho da tela de objetivo
-- primeira versao do calculo de progresso
+- [x] Criar endpoint de replanejamento do objetivo
+- [x] Definir contrato de resposta para replanejamento por semanas futuras
+- [x] Permitir o Mentor sugerir ajuste de carga semanal, prazo e ordem de pilares
+- [x] Persistir historico simples de replanejamentos aprovados
 
-Assim seguimos da ideia para uma implementacao incremental e segura.
+### Evolucoes de IA
+
+- [ ] Definir prompt para sugerir revisoes e flashcards por objetivo
+- [ ] Permitir gerar flashcards a partir do contexto do objetivo selecionado
+- [ ] Permitir gerar sugestoes de revisao a partir de pilares com baixo progresso
+
+### Evolucoes de frontend
+
+- [ ] Permitir transformar recomendacao em tarefa
+- [ ] Permitir transformar recomendacao em assunto
+- [ ] Permitir transformar recomendacao em etapa do plano
+- [x] Exibir historico de ajustes e replanejamentos no detalhe do objetivo
+- [x] Criar CTA de replanejamento dentro da tela de objetivos
+
+### Validacao e qualidade
+
+- [ ] Criar roteiro manual da jornada completa de objetivos
+- [ ] Criar seeds ou massa de dados para demonstracao
+- [ ] Validar fluxo com objetivo de 3 meses
+- [ ] Validar fluxo com objetivo amplo de carreira
+- [ ] Revisar se o progresso exibido parece coerente com uso real
+- [ ] Documentar limitacoes da primeira versao
+
+### Observacoes para a proxima fase
+
+- A regra oficial de progresso continua baseada nas horas de estudo registradas.
+- Tarefas, assuntos e revisoes agora enriquecem a leitura da jornada, mas nao substituem a regra principal de progresso.
+- O proximo ciclo deve focar em replanejamento e automacoes do Mentor, em vez de ampliar muito a modelagem.

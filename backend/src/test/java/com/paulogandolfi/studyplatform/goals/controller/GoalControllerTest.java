@@ -78,7 +78,7 @@ class GoalControllerTest {
                 .andExpect(jsonPath("$.pillars.length()").value(3))
                 .andExpect(jsonPath("$.weeklyMissions.length()").value(3));
 
-        Goal savedGoal = goalRepository.findAllByUser_IdOrderByUpdatedAtDesc(user.getId()).getFirst();
+        Goal savedGoal = goalRepository.findAllByUser_IdOrderByUpdatedAtDesc(user.getId()).get(0);
 
         mockMvc.perform(get("/goals")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user)))
@@ -91,7 +91,10 @@ class GoalControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(savedGoal.getId().toString()))
                 .andExpect(jsonPath("$.weeklyMissions.length()").value(3))
-                .andExpect(jsonPath("$.mentorSummary").exists());
+                .andExpect(jsonPath("$.mentorSummary").exists())
+                .andExpect(jsonPath("$.progressSnapshot.hoursProgressPercentage").value(0))
+                .andExpect(jsonPath("$.linkedSubjects.length()").value(0))
+                .andExpect(jsonPath("$.pendingReviews.length()").value(0));
 
         mockMvc.perform(put("/goals/{id}", savedGoal.getId())
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
@@ -112,6 +115,48 @@ class GoalControllerTest {
                 .andExpect(jsonPath("$.title").value("Virar backend Java pleno revisado"))
                 .andExpect(jsonPath("$.status").value("PAUSED"))
                 .andExpect(jsonPath("$.priority").value("MEDIUM"));
+
+        mockMvc.perform(post("/goals/{id}/replan", savedGoal.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "context": "Atrasou porque perdeu o ritmo nas ultimas semanas",
+                                  "preferredTargetDate": "2026-12-01",
+                                  "preferredWeeklyStudyHours": 7
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.goalId").value(savedGoal.getId().toString()))
+                .andExpect(jsonPath("$.weeklyStudyHours").value(7))
+                .andExpect(jsonPath("$.pillars.length()").value(3))
+                .andExpect(jsonPath("$.nextActions.length()").value(3));
+
+        mockMvc.perform(post("/goals/{id}/replan/apply", savedGoal.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(user))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "Atrasou porque perdeu o ritmo nas ultimas semanas",
+                                  "targetDate": "2026-12-01",
+                                  "weeklyStudyHours": 7,
+                                  "estimatedStudyHours": 84,
+                                  "mentorSummary": "Mentor: plano ajustado para retomar consistencia.",
+                                  "pillars": [
+                                    { "title": "Base revisada", "description": "Recuperar lacunas", "targetHours": 24 },
+                                    { "title": "Execucao guiada", "description": "Foco nas entregas principais", "targetHours": 30 },
+                                    { "title": "Projeto final", "description": "Consolidar com entrega pratica", "targetHours": 30 }
+                                  ],
+                                  "weeklyMissions": [
+                                    { "weekOrder": 1, "title": "Semana 1", "focus": "Revisar base e reorganizar tarefas" },
+                                    { "weekOrder": 2, "title": "Semana 2", "focus": "Voltar para pratica guiada" }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.weeklyStudyHours").value(7))
+                .andExpect(jsonPath("$.estimatedStudyHours").value(84))
+                .andExpect(jsonPath("$.replanHistory.length()").value(1));
 
         mockMvc.perform(delete("/goals/{id}", savedGoal.getId())
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user)))

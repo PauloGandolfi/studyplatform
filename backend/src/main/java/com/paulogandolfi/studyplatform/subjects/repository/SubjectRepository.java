@@ -11,7 +11,11 @@ public interface SubjectRepository extends JpaRepository<Subject, UUID> {
 
     List<Subject> findAllByUser_IdOrderByCreatedAtAsc(UUID userId);
 
+    List<Subject> findAllByUser_IdAndGoal_IdOrderByUpdatedAtDesc(UUID userId, UUID goalId);
+
     long countByUser_Id(UUID userId);
+
+    long countByUser_IdAndGoal_Id(UUID userId, UUID goalId);
 
     Optional<Subject> findByIdAndUser_Id(UUID id, UUID userId);
 }

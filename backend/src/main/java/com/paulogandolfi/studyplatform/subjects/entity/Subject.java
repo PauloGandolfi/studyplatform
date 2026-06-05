@@ -1,5 +1,6 @@
 package com.paulogandolfi.studyplatform.subjects.entity;
 
+import com.paulogandolfi.studyplatform.goals.entity.Goal;
 import com.paulogandolfi.studyplatform.users.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -38,6 +39,10 @@ public class Subject {
     @Column(nullable = false, length = 20)
     private SubjectDifficulty difficulty = SubjectDifficulty.MEDIUM;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "goal_id")
+    private Goal goal;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -48,11 +53,16 @@ public class Subject {
     }
 
     public Subject(User user, String name) {
-        this(user, name, SubjectDifficulty.MEDIUM);
+        this(user, null, name, SubjectDifficulty.MEDIUM);
     }
 
     public Subject(User user, String name, SubjectDifficulty difficulty) {
+        this(user, null, name, difficulty);
+    }
+
+    public Subject(User user, Goal goal, String name, SubjectDifficulty difficulty) {
         this.user = user;
+        this.goal = goal;
         this.name = name;
         this.difficulty = difficulty == null ? SubjectDifficulty.MEDIUM : difficulty;
     }
@@ -91,6 +101,14 @@ public class Subject {
 
     public void setDifficulty(SubjectDifficulty difficulty) {
         this.difficulty = difficulty == null ? SubjectDifficulty.MEDIUM : difficulty;
+    }
+
+    public Goal getGoal() {
+        return goal;
+    }
+
+    public void setGoal(Goal goal) {
+        this.goal = goal;
     }
 
     public LocalDateTime getCreatedAt() {

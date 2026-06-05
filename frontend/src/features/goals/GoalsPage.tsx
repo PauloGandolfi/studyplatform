@@ -1,6 +1,6 @@
 import { FormEvent, MouseEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "../../shared/api/client";
-import { Goal, GoalPlan, GoalPriority, GoalStatus, StudyRecommendations } from "./types";
+import { Goal, GoalPlan, GoalPriority, GoalReplanProposal, GoalStatus, StudyRecommendations } from "./types";
 
 type Feedback = {
   type: "success" | "error";
@@ -18,6 +18,12 @@ type GoalFormValues = {
   estimatedStudyHours: string;
 };
 
+type GoalReplanFormValues = {
+  context: string;
+  preferredTargetDate: string;
+  preferredWeeklyStudyHours: string;
+};
+
 const emptyGoalForm: GoalFormValues = {
   title: "",
   description: "",
@@ -27,6 +33,12 @@ const emptyGoalForm: GoalFormValues = {
   targetDate: "",
   weeklyStudyHours: "6",
   estimatedStudyHours: ""
+};
+
+const emptyReplanForm: GoalReplanFormValues = {
+  context: "",
+  preferredTargetDate: "",
+  preferredWeeklyStudyHours: ""
 };
 
 function formatHoursFromSeconds(seconds: number) {
@@ -56,6 +68,47 @@ function formatGoalStatus(status: GoalStatus) {
   }
 
   return "Concluido";
+}
+
+function formatDifficultyLabel(difficulty: "EASY" | "MEDIUM" | "HARD") {
+  if (difficulty === "EASY") {
+    return "Facil";
+  }
+
+  if (difficulty === "HARD") {
+    return "Dificil";
+  }
+
+  return "Media";
+}
+
+function formatReviewDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+
+  if (!year || !month || !day) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short"
+  }).format(new Date(year, month - 1, day));
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
 }
 
 function formatRiskLabel(riskLevel: string) {
@@ -97,12 +150,16 @@ export default function GoalsPage() {
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
   const [formValues, setFormValues] = useState<GoalFormValues>(emptyGoalForm);
   const [generatedPlan, setGeneratedPlan] = useState<GoalPlan | null>(null);
+  const [replanProposal, setReplanProposal] = useState<GoalReplanProposal | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [recommendationsTopic, setRecommendationsTopic] = useState("");
   const [recommendations, setRecommendations] = useState<StudyRecommendations | null>(null);
+  const [replanValues, setReplanValues] = useState<GoalReplanFormValues>(emptyReplanForm);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+  const [isGeneratingReplan, setIsGeneratingReplan] = useState(false);
+  const [isApplyingReplan, setIsApplyingReplan] = useState(false);
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -170,18 +227,30 @@ export default function GoalsPage() {
   function startNewGoal() {
     setEditingGoalId(null);
     setGeneratedPlan(null);
+    setReplanProposal(null);
     setRecommendations(null);
     setFormValues(emptyGoalForm);
+    setReplanValues(emptyReplanForm);
     setFeedback(null);
   }
 
   function startEditingGoal(goal: Goal) {
     setEditingGoalId(goal.id);
     setGeneratedPlan(null);
+    setReplanProposal(null);
     setRecommendationsTopic(goal.title);
     setFormValues(buildGoalForm(goal));
     setFeedback(null);
   }
+
+  useEffect(() => {
+    setReplanProposal(null);
+    setReplanValues({
+      context: "",
+      preferredTargetDate: selectedGoal?.targetDate ?? "",
+      preferredWeeklyStudyHours: selectedGoal ? String(selectedGoal.weeklyStudyHours) : ""
+    });
+  }, [selectedGoalId, selectedGoal?.targetDate, selectedGoal?.weeklyStudyHours]);
 
   async function handleGeneratePlan(event: MouseEvent<HTMLButtonElement>) {
     event.preventDefault();
@@ -347,6 +416,111 @@ export default function GoalsPage() {
     }
   }
 
+  async function handleGenerateReplan() {
+    if (!selectedGoal) {
+      return;
+    }
+
+    setIsGeneratingReplan(true);
+    setFeedback(null);
+
+    try {
+      const proposal = await apiRequest<GoalReplanProposal>(`/goals/${selectedGoal.id}/replan`, {
+        method: "POST",
+        body: JSON.stringify({
+          context: replanValues.context.trim() || null,
+          preferredTargetDate: replanValues.preferredTargetDate || null,
+          preferredWeeklyStudyHours: replanValues.preferredWeeklyStudyHours ? Number(replanValues.preferredWeeklyStudyHours) : null
+        })
+      });
+
+      setReplanProposal(proposal);
+      setFeedback({
+        type: "success",
+        message: "Proposta de replanejamento gerada pelo Mentor."
+      });
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Nao foi possivel gerar o replanejamento."
+      });
+    } finally {
+      setIsGeneratingReplan(false);
+    }
+  }
+
+  async function handleApplyReplan() {
+    if (!selectedGoal || !replanProposal) {
+      return;
+    }
+
+    setIsApplyingReplan(true);
+    setFeedback(null);
+
+    try {
+      const updatedGoal = await apiRequest<Goal>(`/goals/${selectedGoal.id}/replan/apply`, {
+        method: "POST",
+        body: JSON.stringify({
+          reason: replanProposal.reason,
+          targetDate: replanProposal.targetDate,
+          weeklyStudyHours: replanProposal.weeklyStudyHours,
+          estimatedStudyHours: replanProposal.estimatedStudyHours,
+          mentorSummary: replanProposal.mentorSummary,
+          pillars: replanProposal.pillars.map((pillar) => ({
+            title: pillar.title,
+            description: pillar.description,
+            targetHours: pillar.targetHours
+          })),
+          weeklyMissions: replanProposal.weeklyMissions.map((mission) => ({
+            weekOrder: mission.weekOrder,
+            title: mission.title,
+            focus: mission.focus
+          }))
+        })
+      });
+
+      setGoals((current) => current.map((goal) => goal.id === updatedGoal.id ? updatedGoal : goal));
+      setReplanProposal(null);
+      setFeedback({
+        type: "success",
+        message: "Replanejamento aplicado ao objetivo."
+      });
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Nao foi possivel aplicar o replanejamento."
+      });
+    } finally {
+      setIsApplyingReplan(false);
+    }
+  }
+
+  const proactiveNotes = useMemo(() => {
+    if (!selectedGoal) {
+      return [];
+    }
+
+    const notes: string[] = [];
+
+    if (selectedGoal.riskLevel === "AT_RISK") {
+      notes.push("O objetivo esta em risco. Vale replanejar carga semanal ou prazo antes de acumular mais atraso.");
+    }
+
+    if (selectedGoal.progressSnapshot.pendingReviews > 0) {
+      notes.push(`Ha ${selectedGoal.progressSnapshot.pendingReviews} revisao(oes) pendente(s) afetando sua consistencia.`);
+    }
+
+    if (selectedGoal.progressSnapshot.totalTasks > 0 && selectedGoal.progressSnapshot.completedTasks < selectedGoal.progressSnapshot.totalTasks) {
+      notes.push("Existem missoes abertas. Fechar a proxima entrega pratica pode destravar o ritmo da jornada.");
+    }
+
+    if (selectedGoal.linkedSubjects.length === 0) {
+      notes.push("Conectar assuntos a este objetivo ajuda o Mentor a acompanhar melhor revisoes e flashcards.");
+    }
+
+    return notes.slice(0, 3);
+  }, [selectedGoal]);
+
   return (
     <div className="goals-page">
       <section className="goals-hero">
@@ -458,10 +632,44 @@ export default function GoalsPage() {
                 </article>
               </div>
 
+              <section className="goal-detail-stats">
+                <article>
+                  <span>Tarefas concluidas</span>
+                  <strong>{selectedGoal.progressSnapshot.completedTasks}/{selectedGoal.progressSnapshot.totalTasks}</strong>
+                  <p>Missoes vinculadas e marcadas como feitas.</p>
+                </article>
+                <article>
+                  <span>Assuntos ligados</span>
+                  <strong>{selectedGoal.progressSnapshot.linkedSubjects}</strong>
+                  <p>{selectedGoal.progressSnapshot.totalPillars} pilar(es) no plano atual.</p>
+                </article>
+                <article>
+                  <span>Revisoes pendentes</span>
+                  <strong>{selectedGoal.progressSnapshot.pendingReviews}</strong>
+                  <p>{selectedGoal.progressSnapshot.totalFlashcards} flashcard(s) ligados ao objetivo.</p>
+                </article>
+              </section>
+
               <section className="goal-mentor-summary">
                 <span>Resumo do Mentor</span>
                 <p>{selectedGoal.mentorSummary}</p>
               </section>
+
+              {proactiveNotes.length > 0 ? (
+                <section className="goal-plan-preview">
+                  <div className="panel-heading compact">
+                    <div>
+                      <h3>Mentor proativo</h3>
+                      <small>Sinais da jornada que merecem atencao agora.</small>
+                    </div>
+                  </div>
+                  <ul className="goal-next-actions">
+                    {proactiveNotes.map((note, index) => (
+                      <li key={`${note}-${index}`}>{note}</li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
 
               <section className="goal-pillars-section">
                 <div className="panel-heading compact">
@@ -526,6 +734,179 @@ export default function GoalsPage() {
                           <small>{task.primaryTask ? "Missao principal" : "Missao secundaria"}</small>
                         </div>
                         <span className={`task-status tone-${task.status.toLowerCase()}`}>{task.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="goal-linked-tasks">
+                <div className="panel-heading compact">
+                  <h3>Assuntos conectados</h3>
+                  <small>{selectedGoal.linkedSubjects.length} assunto(s)</small>
+                </div>
+
+                {selectedGoal.linkedSubjects.length === 0 ? (
+                  <p className="goal-linked-empty">Conecte assuntos a este objetivo para organizar melhor anotacoes, flashcards e revisoes.</p>
+                ) : (
+                  <div className="goal-linked-list">
+                    {selectedGoal.linkedSubjects.map((subject) => (
+                      <div key={subject.id} className="goal-linked-task">
+                        <div>
+                          <strong>{subject.name}</strong>
+                          <small>Assunto vinculado ao objetivo</small>
+                        </div>
+                        <span>{formatDifficultyLabel(subject.difficulty)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="goal-linked-tasks">
+                <div className="panel-heading compact">
+                  <h3>Revisoes pendentes</h3>
+                  <small>{selectedGoal.pendingReviews.length} card(s) em destaque</small>
+                </div>
+
+                {selectedGoal.pendingReviews.length === 0 ? (
+                  <p className="goal-linked-empty">Quando houver flashcards vencidos dentro deste objetivo, eles aparecem aqui para priorizacao.</p>
+                ) : (
+                  <div className="goal-linked-list">
+                    {selectedGoal.pendingReviews.map((review) => (
+                      <div key={review.id} className="goal-linked-task">
+                        <div>
+                          <strong>{review.subjectName}</strong>
+                          <small>Revisar ate {formatReviewDate(review.nextReviewDate)}</small>
+                        </div>
+                        <span>{review.question}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="goal-plan-preview">
+                <div className="panel-heading compact">
+                  <div>
+                    <h3>Replanejamento</h3>
+                    <small>Ajuste prazo, carga semanal e foco quando a jornada sair do ritmo.</small>
+                  </div>
+                </div>
+
+                <label>
+                  Contexto para o Mentor
+                  <textarea
+                    value={replanValues.context}
+                    onChange={(event) => setReplanValues((current) => ({ ...current, context: event.target.value }))}
+                    placeholder="Ex: atrasei duas semanas, estou com menos tempo livre e preciso focar no essencial."
+                    maxLength={2000}
+                  />
+                </label>
+
+                <div className="goal-editor-grid">
+                  <label>
+                    Novo prazo desejado
+                    <input
+                      type="date"
+                      value={replanValues.preferredTargetDate}
+                      onChange={(event) => setReplanValues((current) => ({ ...current, preferredTargetDate: event.target.value }))}
+                    />
+                  </label>
+
+                  <label>
+                    Horas por semana desejadas
+                    <input
+                      type="number"
+                      min={1}
+                      max={80}
+                      value={replanValues.preferredWeeklyStudyHours}
+                      onChange={(event) => setReplanValues((current) => ({ ...current, preferredWeeklyStudyHours: event.target.value }))}
+                      placeholder="Opcional"
+                    />
+                  </label>
+                </div>
+
+                <div className="goal-editor-actions">
+                  <button type="button" onClick={handleGenerateReplan} disabled={isGeneratingReplan}>
+                    {isGeneratingReplan ? "Replanejando..." : "Gerar replanejamento"}
+                  </button>
+                  {replanProposal ? (
+                    <button type="button" className="primary" onClick={handleApplyReplan} disabled={isApplyingReplan}>
+                      {isApplyingReplan ? "Aplicando..." : "Aplicar replanejamento"}
+                    </button>
+                  ) : null}
+                </div>
+
+                {replanProposal ? (
+                  <div className="goal-recommendations-panel">
+                    <p>{replanProposal.notice}</p>
+                    <p>{replanProposal.mentorSummary}</p>
+
+                    <div className="goal-detail-stats">
+                      <article>
+                        <span>Novo prazo</span>
+                        <strong>{replanProposal.targetDate || "Sem prazo fechado"}</strong>
+                        <p>Motivo: {replanProposal.reason}</p>
+                      </article>
+                      <article>
+                        <span>Nova cadencia</span>
+                        <strong>{replanProposal.weeklyStudyHours}h/semana</strong>
+                        <p>Estimativa total: {replanProposal.estimatedStudyHours}h.</p>
+                      </article>
+                      <article>
+                        <span>Missoes iniciais</span>
+                        <strong>{replanProposal.weeklyMissions.length}</strong>
+                        <p>Semanas reorganizadas para a retomada.</p>
+                      </article>
+                    </div>
+
+                    <div className="goal-plan-columns">
+                      <div>
+                        <h4>Pilares replanejados</h4>
+                        <ul>
+                          {replanProposal.pillars.map((pillar, index) => (
+                            <li key={`${pillar.title}-${index}`}>
+                              <strong>{pillar.title}</strong>
+                              <span>{pillar.targetHours}h</span>
+                              <p>{pillar.description || "Sem descricao complementar."}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div>
+                        <h4>Proximos passos</h4>
+                        <ul className="goal-next-actions">
+                          {replanProposal.nextActions.map((action, index) => (
+                            <li key={`${action}-${index}`}>{action}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </section>
+
+              <section className="goal-linked-tasks">
+                <div className="panel-heading compact">
+                  <h3>Historico de ajustes</h3>
+                  <small>{selectedGoal.replanHistory.length} replanejamento(s)</small>
+                </div>
+
+                {selectedGoal.replanHistory.length === 0 ? (
+                  <p className="goal-linked-empty">Quando voce aprovar um replanejamento, o historico aparece aqui.</p>
+                ) : (
+                  <div className="goal-linked-list">
+                    {selectedGoal.replanHistory.map((history) => (
+                      <div key={history.id} className="goal-linked-task">
+                        <div>
+                          <strong>{history.reason || "Replanejamento aplicado"}</strong>
+                          <small>{formatDateTime(history.createdAt)}</small>
+                        </div>
+                        <span>
+                          {history.previousWeeklyStudyHours}h/semana -> {history.newWeeklyStudyHours}h/semana
+                        </span>
                       </div>
                     ))}
                   </div>
