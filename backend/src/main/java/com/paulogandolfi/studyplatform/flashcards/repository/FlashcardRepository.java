@@ -19,7 +19,17 @@ public interface FlashcardRepository extends JpaRepository<Flashcard, UUID> {
             LocalDate today
     );
 
+    List<Flashcard> findAllBySubject_User_IdAndSubject_Goal_IdAndNextReviewDateLessThanEqualOrderByNextReviewDateAscCreatedAtAsc(
+            UUID userId,
+            UUID goalId,
+            LocalDate today
+    );
+
     long countBySubject_User_Id(UUID userId);
+
+    long countBySubject_User_IdAndSubject_Goal_Id(UUID userId, UUID goalId);
+
+    long countBySubject_User_IdAndSubject_Goal_IdAndNextReviewDateLessThanEqual(UUID userId, UUID goalId, LocalDate today);
 
     Optional<Flashcard> findByIdAndSubject_User_Id(UUID id, UUID userId);
 }

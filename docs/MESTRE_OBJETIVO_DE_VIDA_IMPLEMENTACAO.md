@@ -570,8 +570,8 @@ Fica para depois:
 - [x] Criar entidade para pilares do objetivo
 - [x] Criar entidade para semanas ou milestones
 - [x] Definir relacionamento com `StudyTask`
-- [ ] Definir relacionamento com `Subject`
-- [ ] Definir se flashcards terao vinculacao opcional com objetivo/pilar
+- [x] Definir relacionamento com `Subject`
+- [x] Definir se flashcards terao vinculacao opcional com objetivo/pilar
 - [x] Criar migrations SQL
 
 ### Backend
@@ -581,7 +581,7 @@ Fica para depois:
 - [x] Criar endpoint para recomendacao estruturada de estudo
 - [x] Criar endpoint para detalhar objetivo com pilares, metas e progresso
 - [ ] Criar endpoint para replanejamento
-- [ ] Implementar servico de calculo de progresso
+- [x] Implementar servico de calculo de progresso
 - [x] Implementar vinculacao entre objetivo e tarefas existentes
 - [x] Cobrir regras com testes de controller e service
 
@@ -607,7 +607,7 @@ Fica para depois:
 - [x] Exibir percentual concluido por objetivo
 - [x] Exibir percentual por pilar
 - [x] Exibir missoes da semana
-- [ ] Exibir revisoes pendentes ligadas ao objetivo
+- [x] Exibir revisoes pendentes ligadas ao objetivo
 - [x] Integrar o Mentor ao contexto do objetivo selecionado
 - [x] Criar visualizacao de recomendacoes estruturadas de estudo
 - [ ] Permitir transformar uma recomendacao em tarefa, assunto ou plano

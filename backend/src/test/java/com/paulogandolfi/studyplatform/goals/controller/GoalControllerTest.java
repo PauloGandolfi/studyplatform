@@ -78,7 +78,7 @@ class GoalControllerTest {
                 .andExpect(jsonPath("$.pillars.length()").value(3))
                 .andExpect(jsonPath("$.weeklyMissions.length()").value(3));
 
-        Goal savedGoal = goalRepository.findAllByUser_IdOrderByUpdatedAtDesc(user.getId()).getFirst();
+        Goal savedGoal = goalRepository.findAllByUser_IdOrderByUpdatedAtDesc(user.getId()).get(0);
 
         mockMvc.perform(get("/goals")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user)))
@@ -91,7 +91,10 @@ class GoalControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(savedGoal.getId().toString()))
                 .andExpect(jsonPath("$.weeklyMissions.length()").value(3))
-                .andExpect(jsonPath("$.mentorSummary").exists());
+                .andExpect(jsonPath("$.mentorSummary").exists())
+                .andExpect(jsonPath("$.progressSnapshot.hoursProgressPercentage").value(0))
+                .andExpect(jsonPath("$.linkedSubjects.length()").value(0))
+                .andExpect(jsonPath("$.pendingReviews.length()").value(0));
 
         mockMvc.perform(put("/goals/{id}", savedGoal.getId())
                         .header(HttpHeaders.AUTHORIZATION, bearerToken(user))

@@ -112,7 +112,7 @@ public class FlashcardService {
         }
 
         userRepository.findById(userId)
-                .map(user -> new StudySession(user, 1, request.correct() ? 1 : 0, today))
+                .map(user -> new StudySession(user, flashcard.getSubject().getGoal(), 1, request.correct() ? 1 : 0, 0, today))
                 .ifPresent(studySessionRepository::save);
 
         return FlashcardResponse.from(flashcard);

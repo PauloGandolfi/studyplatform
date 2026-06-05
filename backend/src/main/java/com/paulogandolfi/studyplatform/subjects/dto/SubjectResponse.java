@@ -10,6 +10,7 @@ public record SubjectResponse(
         UUID id,
         String name,
         SubjectDifficulty difficulty,
+        UUID goalId,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
@@ -19,6 +20,7 @@ public record SubjectResponse(
                 subject.getId(),
                 subject.getName(),
                 subject.getDifficulty(),
+                subject.getGoal() == null ? null : subject.getGoal().getId(),
                 subject.getCreatedAt(),
                 subject.getUpdatedAt()
         );

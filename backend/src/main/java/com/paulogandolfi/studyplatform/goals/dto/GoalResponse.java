@@ -22,9 +22,12 @@ public record GoalResponse(
         int progressPercentage,
         String riskLevel,
         String mentorSummary,
+        GoalProgressSnapshotResponse progressSnapshot,
         List<GoalPillarResponse> pillars,
         List<GoalWeeklyMissionResponse> weeklyMissions,
         List<GoalTaskSummaryResponse> linkedTasks,
+        List<GoalSubjectSummaryResponse> linkedSubjects,
+        List<GoalReviewSummaryResponse> pendingReviews,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {

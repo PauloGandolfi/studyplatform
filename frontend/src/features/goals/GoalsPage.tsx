@@ -58,6 +58,31 @@ function formatGoalStatus(status: GoalStatus) {
   return "Concluido";
 }
 
+function formatDifficultyLabel(difficulty: "EASY" | "MEDIUM" | "HARD") {
+  if (difficulty === "EASY") {
+    return "Facil";
+  }
+
+  if (difficulty === "HARD") {
+    return "Dificil";
+  }
+
+  return "Media";
+}
+
+function formatReviewDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+
+  if (!year || !month || !day) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short"
+  }).format(new Date(year, month - 1, day));
+}
+
 function formatRiskLabel(riskLevel: string) {
   if (riskLevel === "AT_RISK") {
     return "Em risco";
@@ -458,6 +483,24 @@ export default function GoalsPage() {
                 </article>
               </div>
 
+              <section className="goal-detail-stats">
+                <article>
+                  <span>Tarefas concluidas</span>
+                  <strong>{selectedGoal.progressSnapshot.completedTasks}/{selectedGoal.progressSnapshot.totalTasks}</strong>
+                  <p>Missoes vinculadas e marcadas como feitas.</p>
+                </article>
+                <article>
+                  <span>Assuntos ligados</span>
+                  <strong>{selectedGoal.progressSnapshot.linkedSubjects}</strong>
+                  <p>{selectedGoal.progressSnapshot.totalPillars} pilar(es) no plano atual.</p>
+                </article>
+                <article>
+                  <span>Revisoes pendentes</span>
+                  <strong>{selectedGoal.progressSnapshot.pendingReviews}</strong>
+                  <p>{selectedGoal.progressSnapshot.totalFlashcards} flashcard(s) ligados ao objetivo.</p>
+                </article>
+              </section>
+
               <section className="goal-mentor-summary">
                 <span>Resumo do Mentor</span>
                 <p>{selectedGoal.mentorSummary}</p>
@@ -526,6 +569,52 @@ export default function GoalsPage() {
                           <small>{task.primaryTask ? "Missao principal" : "Missao secundaria"}</small>
                         </div>
                         <span className={`task-status tone-${task.status.toLowerCase()}`}>{task.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="goal-linked-tasks">
+                <div className="panel-heading compact">
+                  <h3>Assuntos conectados</h3>
+                  <small>{selectedGoal.linkedSubjects.length} assunto(s)</small>
+                </div>
+
+                {selectedGoal.linkedSubjects.length === 0 ? (
+                  <p className="goal-linked-empty">Conecte assuntos a este objetivo para organizar melhor anotacoes, flashcards e revisoes.</p>
+                ) : (
+                  <div className="goal-linked-list">
+                    {selectedGoal.linkedSubjects.map((subject) => (
+                      <div key={subject.id} className="goal-linked-task">
+                        <div>
+                          <strong>{subject.name}</strong>
+                          <small>Assunto vinculado ao objetivo</small>
+                        </div>
+                        <span>{formatDifficultyLabel(subject.difficulty)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="goal-linked-tasks">
+                <div className="panel-heading compact">
+                  <h3>Revisoes pendentes</h3>
+                  <small>{selectedGoal.pendingReviews.length} card(s) em destaque</small>
+                </div>
+
+                {selectedGoal.pendingReviews.length === 0 ? (
+                  <p className="goal-linked-empty">Quando houver flashcards vencidos dentro deste objetivo, eles aparecem aqui para priorizacao.</p>
+                ) : (
+                  <div className="goal-linked-list">
+                    {selectedGoal.pendingReviews.map((review) => (
+                      <div key={review.id} className="goal-linked-task">
+                        <div>
+                          <strong>{review.subjectName}</strong>
+                          <small>Revisar ate {formatReviewDate(review.nextReviewDate)}</small>
+                        </div>
+                        <span>{review.question}</span>
                       </div>
                     ))}
                   </div>

@@ -1338,6 +1338,59 @@ textarea {
   color: rgba(255, 255, 255, 0.72);
 }
 
+.journey-panel {
+  min-width: 0;
+}
+
+.journey-goal-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.journey-goal-card > strong {
+  color: #fff;
+  font-size: 1.15rem;
+}
+
+.journey-goal-card > p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.74);
+  line-height: 1.5;
+}
+
+.journey-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.journey-metrics span,
+.journey-alert-item span {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.82rem;
+}
+
+.journey-alert-list {
+  display: grid;
+  gap: 10px;
+}
+
+.journey-alert-item {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.journey-alert-item strong {
+  color: #fff;
+}
+
 .progress-ring {
   width: 62px;
   height: 62px;
@@ -1699,6 +1752,10 @@ textarea {
 
 .subject-card-content {
   min-width: 0;
+}
+
+.subject-card-content small {
+  width: fit-content;
 }
 
 .subject-card-content h2 {
