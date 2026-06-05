@@ -4085,8 +4085,14 @@ textarea {
     border-left: 1px solid var(--panel-border);
   }
 
-.home-page.mestre-open .mestre-sidebar {
-  right: 0;
+  .home-page.mestre-open .mestre-sidebar {
+    right: 0;
+  }
+
+  .dashboard {
+    position: relative;
+    z-index: 50;
+  }
 }
 
 .study-goal-select {
@@ -4383,6 +4389,7 @@ textarea {
 .goal-mentor-summary p,
 .goal-pillar-card p,
 .goal-linked-task small,
+.goal-linked-task span,
 .goal-plan-preview small,
 .goals-empty-state p,
 .goals-list button p {
@@ -4460,6 +4467,18 @@ textarea {
   padding: 0.9rem;
 }
 
+.goal-recommendations-panel a,
+.goal-plan-preview a {
+  color: #8fe8d7;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.goal-recommendations-panel a:hover,
+.goal-plan-preview a:hover {
+  text-decoration: underline;
+}
+
 .goals-empty-state {
   display: grid;
   gap: 0.5rem;
@@ -4483,11 +4502,5 @@ textarea {
   .goals-hero-stats,
   .goal-editor-grid {
     grid-template-columns: 1fr;
-  }
-}
-
-  .dashboard {
-    position: relative;
-    z-index: 50;
   }
 }

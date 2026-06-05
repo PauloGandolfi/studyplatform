@@ -1,6 +1,6 @@
 import { FormEvent, MouseEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "../../shared/api/client";
-import { Goal, GoalPlan, GoalPriority, GoalStatus } from "./types";
+import { Goal, GoalPlan, GoalPriority, GoalStatus, StudyRecommendations } from "./types";
 
 type Feedback = {
   type: "success" | "error";
@@ -98,9 +98,12 @@ export default function GoalsPage() {
   const [formValues, setFormValues] = useState<GoalFormValues>(emptyGoalForm);
   const [generatedPlan, setGeneratedPlan] = useState<GoalPlan | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [recommendationsTopic, setRecommendationsTopic] = useState("");
+  const [recommendations, setRecommendations] = useState<StudyRecommendations | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const selectedGoal = goals.find((goal) => goal.id === selectedGoalId) ?? null;
@@ -132,6 +135,33 @@ export default function GoalsPage() {
     loadGoals();
   }, [loadGoals]);
 
+  useEffect(() => {
+    if (!selectedGoalId) {
+      return;
+    }
+
+    let isActive = true;
+
+    async function loadGoalDetail() {
+      try {
+        const detail = await apiRequest<Goal>(`/goals/${selectedGoalId}`);
+        if (!isActive) {
+          return;
+        }
+
+        setGoals((current) => current.map((goal) => goal.id === detail.id ? detail : goal));
+      } catch {
+        // Keep list data as fallback when detail fetch fails.
+      }
+    }
+
+    loadGoalDetail();
+
+    return () => {
+      isActive = false;
+    };
+  }, [selectedGoalId]);
+
   function updateField<K extends keyof GoalFormValues>(field: K, value: GoalFormValues[K]) {
     setFormValues((current) => ({ ...current, [field]: value }));
     setFeedback(null);
@@ -140,6 +170,7 @@ export default function GoalsPage() {
   function startNewGoal() {
     setEditingGoalId(null);
     setGeneratedPlan(null);
+    setRecommendations(null);
     setFormValues(emptyGoalForm);
     setFeedback(null);
   }
@@ -147,6 +178,7 @@ export default function GoalsPage() {
   function startEditingGoal(goal: Goal) {
     setEditingGoalId(goal.id);
     setGeneratedPlan(null);
+    setRecommendationsTopic(goal.title);
     setFormValues(buildGoalForm(goal));
     setFeedback(null);
   }
@@ -211,7 +243,9 @@ export default function GoalsPage() {
       targetDate: formValues.targetDate || null,
       weeklyStudyHours: Number(formValues.weeklyStudyHours),
       estimatedStudyHours: formValues.estimatedStudyHours ? Number(formValues.estimatedStudyHours) : null,
-      pillars: generatedPlan?.pillars ?? null
+      pillars: generatedPlan?.pillars ?? null,
+      weeklyMissions: generatedPlan?.weeklyMissions ?? null,
+      mentorSummary: generatedPlan?.mentorSummary ?? null
     };
 
     try {
@@ -271,6 +305,45 @@ export default function GoalsPage() {
       });
     } finally {
       setIsDeleting(false);
+    }
+  }
+
+  async function handleLoadRecommendations() {
+    const topic = recommendationsTopic.trim() || selectedGoal?.title?.trim() || formValues.title.trim();
+
+    if (!topic) {
+      setFeedback({
+        type: "error",
+        message: "Informe um assunto ou aproveite o titulo do objetivo para gerar recomendacoes."
+      });
+      return;
+    }
+
+    setIsLoadingRecommendations(true);
+    setFeedback(null);
+
+    try {
+      const response = await apiRequest<StudyRecommendations>("/mentor/recommendations", {
+        method: "POST",
+        body: JSON.stringify({
+          topic,
+          learningGoal: selectedGoal?.title || formValues.title || topic,
+          currentLevel: selectedGoal?.currentLevel || formValues.currentLevel || "iniciante"
+        })
+      });
+
+      setRecommendations(response);
+      setFeedback({
+        type: "success",
+        message: "Curadoria estruturada carregada pelo Mentor."
+      });
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Nao foi possivel gerar recomendacoes agora."
+      });
+    } finally {
+      setIsLoadingRecommendations(false);
     }
   }
 
@@ -411,6 +484,29 @@ export default function GoalsPage() {
                     </article>
                   ))}
                 </div>
+              </section>
+
+              <section className="goal-linked-tasks">
+                <div className="panel-heading compact">
+                  <h3>Missoes da fase inicial</h3>
+                  <small>{selectedGoal.weeklyMissions.length} semana(s)</small>
+                </div>
+
+                {selectedGoal.weeklyMissions.length === 0 ? (
+                  <p className="goal-linked-empty">As missoes estruturadas da fase inicial aparecem aqui quando o plano tiver sido salvo.</p>
+                ) : (
+                  <div className="goal-linked-list">
+                    {selectedGoal.weeklyMissions.map((mission) => (
+                      <div key={mission.id} className="goal-linked-task">
+                        <div>
+                          <strong>{mission.title}</strong>
+                          <small>Semana {mission.weekOrder}</small>
+                        </div>
+                        <span>{mission.focus}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </section>
 
               <section className="goal-linked-tasks">
@@ -599,6 +695,70 @@ export default function GoalsPage() {
               </div>
             </section>
           ) : null}
+
+          <section className="goal-plan-preview">
+            <div className="panel-heading compact">
+              <div>
+                <h3>Recomendacoes estruturadas</h3>
+                <small>Gratuitas primeiro, depois algumas pagas de boa qualidade.</small>
+              </div>
+            </div>
+
+            <label>
+              Assunto para curadoria
+              <input
+                type="text"
+                value={recommendationsTopic}
+                onChange={(event) => setRecommendationsTopic(event.target.value)}
+                placeholder="Ex: Spring Security para JWT"
+                maxLength={160}
+              />
+            </label>
+
+            <div className="goal-editor-actions">
+              <button type="button" onClick={handleLoadRecommendations} disabled={isLoadingRecommendations}>
+                {isLoadingRecommendations ? "Buscando curadoria..." : "Gerar recomendacoes do Mentor"}
+              </button>
+            </div>
+
+            {recommendations ? (
+              <div className="goal-recommendations-panel">
+                <p>{recommendations.mentorNotice}</p>
+
+                <div className="goal-plan-columns">
+                  <div>
+                    <h4>Ordem sugerida</h4>
+                    <ul>
+                      {recommendations.suggestedOrder.map((item, index) => (
+                        <li key={`${item}-${index}`}>
+                          <strong>Passo {index + 1}</strong>
+                          <p>{item}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h4>Cursos recomendados</h4>
+                    <ul>
+                      {recommendations.recommendations.map((recommendation, index) => (
+                        <li key={`${recommendation.link}-${index}`}>
+                          <strong>{recommendation.title}</strong>
+                          <span>{recommendation.pricing === "FREE" ? "Gratuito" : "Pago"} • {recommendation.platform}</span>
+                          <p>{recommendation.reason}</p>
+                          <a href={recommendation.link} target="_blank" rel="noreferrer">
+                            Abrir curso
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                <p>Pratica sugerida: {recommendations.practiceSuggestion}</p>
+              </div>
+            ) : null}
+          </section>
         </form>
       </section>
     </div>

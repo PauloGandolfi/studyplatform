@@ -5,13 +5,14 @@ import com.paulogandolfi.studyplatform.goals.dto.GoalPillarResponse;
 import com.paulogandolfi.studyplatform.goals.dto.GoalRequest;
 import com.paulogandolfi.studyplatform.goals.dto.GoalResponse;
 import com.paulogandolfi.studyplatform.goals.dto.GoalTaskSummaryResponse;
+import com.paulogandolfi.studyplatform.goals.dto.GoalWeeklyMissionRequest;
+import com.paulogandolfi.studyplatform.goals.dto.GoalWeeklyMissionResponse;
 import com.paulogandolfi.studyplatform.goals.entity.Goal;
 import com.paulogandolfi.studyplatform.goals.entity.GoalPillar;
-import com.paulogandolfi.studyplatform.goals.entity.GoalPriority;
 import com.paulogandolfi.studyplatform.goals.entity.GoalStatus;
+import com.paulogandolfi.studyplatform.goals.entity.GoalWeekPlan;
 import com.paulogandolfi.studyplatform.goals.repository.GoalRepository;
 import com.paulogandolfi.studyplatform.sessions.repository.StudySessionRepository;
-import com.paulogandolfi.studyplatform.tasks.entity.StudyTask;
 import com.paulogandolfi.studyplatform.tasks.repository.StudyTaskRepository;
 import com.paulogandolfi.studyplatform.users.entity.User;
 import com.paulogandolfi.studyplatform.users.repository.UserRepository;
@@ -77,9 +78,10 @@ public class GoalService {
                 request.targetDate(),
                 request.weeklyStudyHours(),
                 estimatedStudyHours,
-                buildMentorSummary(request.title(), request.targetDate(), 0, estimatedStudyHours)
+                resolveMentorSummary(request.mentorSummary(), request.title(), request.targetDate(), 0, estimatedStudyHours)
         );
         goal.replacePillars(buildPillars(goal, request.pillars(), estimatedStudyHours));
+        goal.replaceWeekPlans(buildWeekPlans(request.weeklyMissions(), goal.getPillars()));
 
         return toResponse(userId, goalRepository.save(goal));
     }
@@ -98,8 +100,9 @@ public class GoalService {
         goal.setTargetDate(request.targetDate());
         goal.setWeeklyStudyHours(request.weeklyStudyHours());
         goal.setEstimatedStudyHours(estimatedStudyHours);
-        goal.setMentorSummary(buildMentorSummary(goal.getTitle(), goal.getTargetDate(), trackedSeconds, estimatedStudyHours));
         goal.replacePillars(buildPillars(goal, request.pillars(), estimatedStudyHours));
+        goal.replaceWeekPlans(buildWeekPlans(request.weeklyMissions(), goal.getPillars()));
+        goal.setMentorSummary(resolveMentorSummary(request.mentorSummary(), goal.getTitle(), goal.getTargetDate(), trackedSeconds, estimatedStudyHours));
 
         return toResponse(userId, goal);
     }
@@ -138,6 +141,15 @@ public class GoalService {
         long trackedStudySeconds = trackedStudySeconds(userId, goal.getId());
         int progressPercentage = calculateGoalProgress(goal.getEstimatedStudyHours(), trackedStudySeconds);
         List<GoalPillarResponse> pillarResponses = buildPillarResponses(goal.getPillars(), trackedStudySeconds);
+        List<GoalWeeklyMissionResponse> weeklyMissionResponses = goal.getWeekPlans()
+                .stream()
+                .map(weekPlan -> new GoalWeeklyMissionResponse(
+                        weekPlan.getId(),
+                        weekPlan.getWeekOrder(),
+                        weekPlan.getTitle(),
+                        weekPlan.getFocus()
+                ))
+                .toList();
         List<GoalTaskSummaryResponse> linkedTasks = studyTaskRepository
                 .findAllByUser_IdAndGoal_IdOrderByPrimaryTaskDescCreatedAtAsc(userId, goal.getId())
                 .stream()
@@ -159,6 +171,7 @@ public class GoalService {
                 riskLevel(goal, progressPercentage),
                 buildMentorSummary(goal.getTitle(), goal.getTargetDate(), trackedStudySeconds, goal.getEstimatedStudyHours()),
                 pillarResponses,
+                weeklyMissionResponses,
                 linkedTasks,
                 goal.getCreatedAt(),
                 goal.getUpdatedAt()
@@ -245,6 +258,22 @@ public class GoalService {
         return pillars;
     }
 
+    private List<GoalWeekPlan> buildWeekPlans(List<GoalWeeklyMissionRequest> weekPlanRequests, List<GoalPillar> pillars) {
+        List<GoalWeeklyMissionRequest> source = (weekPlanRequests == null || weekPlanRequests.isEmpty())
+                ? defaultWeekPlans(pillars)
+                : weekPlanRequests;
+
+        return source.stream()
+                .filter(weekPlan -> StringUtils.hasText(weekPlan.title()) && StringUtils.hasText(weekPlan.focus()))
+                .sorted(Comparator.comparingInt(weekPlan -> weekPlan.weekOrder() == null ? Integer.MAX_VALUE : weekPlan.weekOrder()))
+                .map(weekPlan -> new GoalWeekPlan(
+                        weekPlan.weekOrder() == null ? 1 : weekPlan.weekOrder(),
+                        weekPlan.title().trim(),
+                        weekPlan.focus().trim()
+                ))
+                .toList();
+    }
+
     private List<GoalPillarRequest> defaultPillars(String title, int estimatedStudyHours) {
         int first = Math.max(1, Math.round(estimatedStudyHours * 0.35f));
         int second = Math.max(1, Math.round(estimatedStudyHours * 0.30f));
@@ -255,6 +284,21 @@ public class GoalService {
                 new GoalPillarRequest("Pratica guiada", "Aplique o conteudo em exercicios, labs e pequenos desafios.", second),
                 new GoalPillarRequest("Projeto aplicado", "Consolide o objetivo com entregas reais e revisao final.", third)
         );
+    }
+
+    private List<GoalWeeklyMissionRequest> defaultWeekPlans(List<GoalPillar> pillars) {
+        List<GoalWeeklyMissionRequest> defaultPlans = new ArrayList<>();
+
+        for (int index = 0; index < pillars.size(); index++) {
+            GoalPillar pillar = pillars.get(index);
+            defaultPlans.add(new GoalWeeklyMissionRequest(
+                    index + 1,
+                    "Semana " + (index + 1),
+                    "Avance no pilar \"" + pillar.getTitle() + "\" com foco em estudo, pratica e revisao."
+            ));
+        }
+
+        return defaultPlans;
     }
 
     private int resolveEstimatedStudyHours(GoalRequest request, Goal existingGoal) {
@@ -283,6 +327,20 @@ public class GoalService {
 
     private long trackedStudySeconds(UUID userId, UUID goalId) {
         return studySessionRepository.sumDurationSecondsByUserIdAndGoal_Id(userId, goalId);
+    }
+
+    private String resolveMentorSummary(
+            String providedSummary,
+            String title,
+            LocalDate targetDate,
+            long trackedStudySeconds,
+            int estimatedStudyHours
+    ) {
+        if (StringUtils.hasText(providedSummary)) {
+            return providedSummary.trim();
+        }
+
+        return buildMentorSummary(title, targetDate, trackedStudySeconds, estimatedStudyHours);
     }
 
     private static String normalizeOptionalText(String value) {

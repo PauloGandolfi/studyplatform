@@ -23,6 +23,7 @@ public record GoalResponse(
         String riskLevel,
         String mentorSummary,
         List<GoalPillarResponse> pillars,
+        List<GoalWeeklyMissionResponse> weeklyMissions,
         List<GoalTaskSummaryResponse> linkedTasks,
         LocalDateTime createdAt,
         LocalDateTime updatedAt

@@ -69,6 +69,9 @@ public class Goal {
     @OneToMany(mappedBy = "goal", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<GoalPillar> pillars = new ArrayList<>();
 
+    @OneToMany(mappedBy = "goal", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<GoalWeekPlan> weekPlans = new ArrayList<>();
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -208,6 +211,22 @@ public class Goal {
     public void addPillar(GoalPillar pillar) {
         pillar.setGoal(this);
         pillars.add(pillar);
+    }
+
+    public List<GoalWeekPlan> getWeekPlans() {
+        return weekPlans.stream()
+                .sorted(Comparator.comparingInt(GoalWeekPlan::getWeekOrder))
+                .toList();
+    }
+
+    public void replaceWeekPlans(List<GoalWeekPlan> nextWeekPlans) {
+        weekPlans.clear();
+        nextWeekPlans.forEach(this::addWeekPlan);
+    }
+
+    public void addWeekPlan(GoalWeekPlan weekPlan) {
+        weekPlan.setGoal(this);
+        weekPlans.add(weekPlan);
     }
 
     public LocalDateTime getCreatedAt() {
